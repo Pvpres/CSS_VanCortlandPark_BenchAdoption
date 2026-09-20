@@ -126,69 +126,74 @@ BENCHES = [
 ]
 
 ADOPTIONS = [
+    # --- Ending Soon (Adopted in 2016, 10-year term ending in 2026) ---
     {
         "bench_id": "VCP-002",
         "donor_name": "Elena & Mateo Rivera",
         "email": "rivera.family@example.com",
         "dedication": "In loving memory of Abuela Sofia, who walked this park every morning.",
-        "start_date": datetime.date(2023, 4, 15),
-        "end_date": datetime.date(2028, 4, 15)
-    },
-    {
-        "bench_id": "VCP-004",
-        "donor_name": "Van Cortlandt Track Alumni",
-        "email": "alumni@vctrack.org",
-        "dedication": "Dedicated to all runners who pushed their limits on the Parade Ground.",
-        "start_date": datetime.date(2022, 9, 1),
-        "end_date": datetime.date(2027, 9, 1)
-    },
-    {
-        "bench_id": "VCP-005",
-        "donor_name": "David & Sarah Chen",
-        "email": "chen.d@example.com",
-        "dedication": "Where we shared our first date by the lake. Forever grateful.",
-        "start_date": datetime.date(2023, 6, 20),
-        "end_date": datetime.date(2028, 6, 20)
+        "start_date": datetime.date(2016, 11, 15),
+        "end_date": datetime.date(2026, 11, 15)
     },
     {
         "bench_id": "VCP-007",
         "donor_name": "Bronx Historical Society",
         "email": "info@bronxhistorical.org",
         "dedication": "Honoring the brave veterans remembered along Memorial Grove.",
-        "start_date": datetime.date(2021, 11, 11),
-        "end_date": datetime.date(2026, 11, 11)
+        "start_date": datetime.date(2016, 10, 1),
+        "end_date": datetime.date(2026, 10, 1)
     },
+
+    # --- Midterm (Adopted 2020-2022, 10-year term ending 2030-2032) ---
     {
-        "bench_id": "VCP-009",
-        "donor_name": "The O'Connor Family",
-        "email": "oconnor.golf@example.com",
-        "dedication": "For Grandpa Joe — may all your drives be straight and your putts true.",
-        "start_date": datetime.date(2024, 5, 10),
-        "end_date": datetime.date(2029, 5, 10)
+        "bench_id": "VCP-004",
+        "donor_name": "Van Cortlandt Track Alumni",
+        "email": "alumni@vctrack.org",
+        "dedication": "Dedicated to all runners who pushed their limits on the Parade Ground.",
+        "start_date": datetime.date(2020, 9, 1),
+        "end_date": datetime.date(2030, 9, 1)
     },
     {
         "bench_id": "VCP-011",
         "donor_name": "Friends of John Kieran Trail",
         "email": "kieranfriends@example.com",
         "dedication": "Preserving nature and peaceful bird watching for all Bronx residents.",
-        "start_date": datetime.date(2023, 8, 1),
-        "end_date": datetime.date(2028, 8, 1)
+        "start_date": datetime.date(2021, 6, 15),
+        "end_date": datetime.date(2031, 6, 15)
     },
     {
         "bench_id": "VCP-014",
         "donor_name": "Coach Marcus Williams",
         "email": "coach.marcus@example.com",
         "dedication": "Champions are made on Cemetery Hill. Keep pushing!",
-        "start_date": datetime.date(2022, 10, 5),
-        "end_date": datetime.date(2027, 10, 5)
+        "start_date": datetime.date(2022, 4, 10),
+        "end_date": datetime.date(2032, 4, 10)
+    },
+
+    # --- Recently Created (Adopted 2025-2026, 10-year term ending 2035-2036) ---
+    {
+        "bench_id": "VCP-005",
+        "donor_name": "David & Sarah Chen",
+        "email": "chen.d@example.com",
+        "dedication": "Where we shared our first date by the lake. Forever grateful.",
+        "start_date": datetime.date(2025, 5, 20),
+        "end_date": datetime.date(2035, 5, 20)
+    },
+    {
+        "bench_id": "VCP-009",
+        "donor_name": "The O'Connor Family",
+        "email": "oconnor.golf@example.com",
+        "dedication": "For Grandpa Joe — may all your drives be straight and your putts true.",
+        "start_date": datetime.date(2026, 1, 10),
+        "end_date": datetime.date(2036, 1, 10)
     },
     {
         "bench_id": "VCP-018",
         "donor_name": "Woodlawn Community League",
         "email": "community@woodlawnleague.org",
         "dedication": "A resting spot for neighbors, families, and friends of Woodlawn.",
-        "start_date": datetime.date(2024, 2, 14),
-        "end_date": datetime.date(2029, 2, 14)
+        "start_date": datetime.date(2026, 7, 4),
+        "end_date": datetime.date(2036, 7, 4)
     },
 ]
 
