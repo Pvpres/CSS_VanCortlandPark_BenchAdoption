@@ -43,6 +43,43 @@
     </div>
   </div>
 
+  <!-- Centered Adopt Modal Form -->
+  <div class="modal-backdrop" id="adopt-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="modal-bench-title">Adopt Bench</h3>
+          <div class="modal-subtitle" id="modal-bench-loc"></div>
+        </div>
+        <button type="button" class="modal-close-btn" id="modal-close-btn" onclick="closeAdoptModal()" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="adopt-form">
+        <input type="hidden" id="modal-bench-id" />
+        <div class="form-group">
+          <label class="form-label" for="donor-name-input">Donor Name *</label>
+          <input type="text" id="donor-name-input" class="form-input" placeholder="e.g. Elena Rivera" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="donor-email-input">Email Address *</label>
+          <input type="email" id="donor-email-input" class="form-input" placeholder="you@example.com" required />
+          <span class="form-helper">Private, used only for park verification.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="dedication-input">Dedication Plaque Inscription</label>
+          <textarea id="dedication-input" class="form-input" placeholder="e.g. In loving memory of..."></textarea>
+          <span class="form-helper">Term lasts 10 years from today.</span>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" onclick="closeAdoptModal()">Cancel</button>
+          <button type="submit" class="btn-submit" id="btn-submit-adopt">Adopt for 10 Years</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
+
   <!-- Server-injected data container (prevents JavaScript linter syntax errors) -->
   <script id="benches-data" type="application/json">
     {{ benches | tojson | safe if benches is defined else '[]' }}
@@ -79,34 +116,72 @@
 
         const el = document.createElement("div");
         el.className = `pin ${pinClass}`;
+        el.setAttribute("title", `${bench.location} (${isAvailable ? "Available" : "Adopted"})`);
 
         let popupHtml = `
-          <div style="min-width: 180px;">
-            <h4 style="margin: 0 0 4px 0; font-size: 0.95rem;">${bench.location}</h4>
-            <div style="font-size: 0.75rem; color: #666; margin-bottom: 6px;">ID: ${bench.id}</div>
+          <div class="popup-content-inner">
+            <h4 class="popup-title">${bench.location}</h4>
+            <div class="popup-id">ID: ${bench.id}</div>
             <span class="popup-status ${pinClass}">
               ${isAvailable ? "Available" : "Adopted"}
             </span>
         `;
 
-        if (!isAvailable && bench.current_adoption) {
+        if (isAvailable) {
           popupHtml += `
-            <div style="margin-top: 8px; font-size: 0.8rem; border-top: 1px solid #eee; padding-top: 6px;">
+            <button type="button" class="btn-adopt-popup" onclick="openAdoptModal('${bench.id}')">
+              Adopt this Bench
+            </button>
+          `;
+        } else if (bench.current_adoption) {
+          popupHtml += `
+            <div class="popup-adoption-details">
               <div><b>Dedicated by:</b> ${bench.current_adoption.donor_name}</div>
-              ${bench.current_adoption.dedication ? `<div style="font-style: italic; margin-top: 2px;">“${bench.current_adoption.dedication}”</div>` : ""}
-              <div style="color: #888; font-size: 0.72rem; margin-top: 4px;">Term ends: ${bench.current_adoption.end_date}</div>
+              ${bench.current_adoption.dedication ? `<div class="popup-dedication">“${bench.current_adoption.dedication}”</div>` : ""}
+              <div class="popup-term">Term ends: ${bench.current_adoption.end_date}</div>
             </div>
           `;
         }
 
         popupHtml += `</div>`;
 
-        const popup = new maplibregl.Popup({ offset: 12 }).setHTML(popupHtml);
+        const popup = new maplibregl.Popup({ offset: 12, closeButton: false })
+          .setLngLat([bench.longitude, bench.latitude])
+          .setHTML(popupHtml);
 
         const marker = new maplibregl.Marker({ element: el })
           .setLngLat([bench.longitude, bench.latitude])
           .setPopup(popup)
           .addTo(map);
+
+        // Hover handling to display popup and allow moving cursor into popup
+        let hoverTimeout = null;
+
+        el.addEventListener("mouseenter", () => {
+          clearTimeout(hoverTimeout);
+          if (!popup.isOpen()) {
+            popup.addTo(map);
+          }
+
+          const popupEl = popup.getElement();
+          if (popupEl && !popupEl.dataset.hoverBound) {
+            popupEl.dataset.hoverBound = "true";
+            popupEl.addEventListener("mouseenter", () => {
+              clearTimeout(hoverTimeout);
+            });
+            popupEl.addEventListener("mouseleave", () => {
+              hoverTimeout = setTimeout(() => {
+                popup.remove();
+              }, 250);
+            });
+          }
+        });
+
+        el.addEventListener("mouseleave", () => {
+          hoverTimeout = setTimeout(() => {
+            popup.remove();
+          }, 250);
+        });
 
         currentMarkers.push(marker);
       });
@@ -116,7 +191,110 @@
       countEl.textContent = `Showing ${benches.length} of ${allBenches.length} benches`;
     }
 
-    // 3. Filter Logic
+    // 3. Modal & Adoption Logic
+    function openAdoptModal(benchId) {
+      // Close active popups
+      currentMarkers.forEach(m => {
+        const p = m.getPopup();
+        if (p && p.isOpen()) p.remove();
+      });
+
+      const bench = allBenches.find(b => b.id === benchId);
+      if (!bench) return;
+
+      document.getElementById("modal-bench-id").value = bench.id;
+      document.getElementById("modal-bench-title").textContent = `Adopt Bench ${bench.id}`;
+      document.getElementById("modal-bench-loc").textContent = bench.location;
+      document.getElementById("donor-name-input").value = "";
+      document.getElementById("donor-email-input").value = "";
+      document.getElementById("dedication-input").value = "";
+
+      document.getElementById("adopt-modal").classList.add("open");
+      document.getElementById("donor-name-input").focus();
+    }
+
+    function closeAdoptModal() {
+      document.getElementById("adopt-modal").classList.remove("open");
+    }
+
+    // Close modal when clicking backdrop or pressing Escape
+    document.getElementById("adopt-modal").addEventListener("click", (e) => {
+      if (e.target.id === "adopt-modal") {
+        closeAdoptModal();
+      }
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        closeAdoptModal();
+      }
+    });
+
+    // Form submit handler
+    document.getElementById("adopt-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const benchId = document.getElementById("modal-bench-id").value;
+      const donorName = document.getElementById("donor-name-input").value.trim();
+      const email = document.getElementById("donor-email-input").value.trim();
+      const dedication = document.getElementById("dedication-input").value.trim();
+
+      const submitBtn = document.getElementById("btn-submit-adopt");
+      const origText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Processing...";
+
+      try {
+        const res = await fetch(`/api/benches/${benchId}/adopt`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            donor_name: donorName,
+            email: email,
+            dedication: dedication
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          alert(data.error || "Unable to adopt bench. Please try again.");
+          return;
+        }
+
+        // Update local bench state
+        const target = allBenches.find(b => b.id === benchId);
+        if (target) {
+          target.available = false;
+          target.current_adoption = data.adoption;
+        }
+
+        closeAdoptModal();
+        applyFilters();
+        showToast(`Bench ${benchId} successfully adopted!`);
+      } catch (err) {
+        console.error("Adoption error:", err);
+        alert("A network error occurred. Please try again.");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = origText;
+      }
+    });
+
+    // Toast helper
+    let toastTimeout = null;
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.classList.add("show");
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove("show");
+      }, 3500);
+    }
+
+    // 4. Filter Logic
     function applyFilters() {
       let filtered = allBenches;
 
@@ -147,7 +325,7 @@
       renderMarkers(filtered);
     }
 
-    // 4. UI Event Listeners
+    // 5. UI Event Listeners for Filters
     const dateSection = document.getElementById("date-filter-section");
     const dateSelect = document.getElementById("date-select");
 
@@ -177,7 +355,7 @@
       applyFilters();
     });
 
-    // 5. Initial Load (Parse JSON from script tag or fallback to API fetch)
+    // 6. Initial Load
     map.on('load', () => {
       const dataEl = document.getElementById("benches-data");
       let serverBenches = null;
