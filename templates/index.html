@@ -43,6 +43,11 @@
     </div>
   </div>
 
+  <!-- Server-injected data container (prevents JavaScript linter syntax errors) -->
+  <script id="benches-data" type="application/json">
+    {{ benches | tojson | safe if benches is defined else '[]' }}
+  </script>
+
   <!-- MapLibre GL JS -->
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 
@@ -172,9 +177,18 @@
       applyFilters();
     });
 
-    // 5. Initial Load
-    const serverBenches = {{ benches | tojson if benches is defined else 'null' }};
+    // 5. Initial Load (Parse JSON from script tag or fallback to API fetch)
     map.on('load', () => {
+      const dataEl = document.getElementById("benches-data");
+      let serverBenches = null;
+      if (dataEl && dataEl.textContent.trim()) {
+        try {
+          serverBenches = JSON.parse(dataEl.textContent);
+        } catch (e) {
+          serverBenches = null;
+        }
+      }
+
       if (serverBenches && serverBenches.length) {
         allBenches = serverBenches;
         applyFilters();
