@@ -13,7 +13,8 @@ with app.app_context():
 
 @app.route("/")
 def index():
-    return render_template('index.html')
+    benches_data = get_benches().get_json()
+    return render_template('index.html', benches=benches_data)
 
 @app.route("/api/benches", methods=["GET"])
 def get_benches():

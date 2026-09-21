@@ -13,6 +13,7 @@ class Bench(db.Model):
 #Adoption table in DB represents the actually ownership  
 class Adoption(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    #ties each adoption to a specific bench via the unique bench id as a foreign key 
     bench_id = db.Column(
         db.String,
         db.ForeignKey("bench.id"),
