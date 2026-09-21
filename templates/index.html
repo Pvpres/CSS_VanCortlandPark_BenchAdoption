@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Van Cortlandt Park Map</title>
+
+  <!-- MapLibre GL CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+  <!-- Map Container -->
+  <div id="map"></div>
+
+  <!-- Floating Filter Card -->
+  <div class="filter-card">
+    <div class="filter-title">Filter Benches</div>
+
+    <!-- Part 1: Status Filter -->
+    <div class="filter-group">
+      <button class="filter-btn active" data-status="all">All</button>
+      <button class="filter-btn" data-status="available"><span class="dot green"></span>Available</button>
+      <button class="filter-btn" data-status="adopted"><span class="dot yellow"></span>Adopted</button>
+    </div>
+
+    <!-- Part 2: End Date Filter (Only for Adopted) -->
+    <div class="date-filter-section" id="date-filter-section">
+      <div class="filter-title">Adoption Expiration</div>
+      <select class="date-select" id="date-select">
+        <option value="all">All Expiration Dates</option>
+        <option value="soon">Ending Soon (2026 / This Year)</option>
+        <option value="midterm">Midterm (2027 – 2032)</option>
+        <option value="recent">Recently Created (2033+)</option>
+      </select>
+    </div>
+
+    <div class="filter-footer">
+      <span id="bench-count">Showing all benches</span>
+    </div>
+  </div>
+
+  <!-- MapLibre GL JS -->
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+  <script>
+    // 1. Initialize Minimalist Positron Map
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://tiles.openfreemap.org/styles/positron',
+      center: [-73.886, 40.897],
+      zoom: 14
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+
+    let allBenches = [];
+    let currentMarkers = [];
+    let activeStatus = "all";
+    let activeDateFilter = "all";
+
+    // 2. Render Markers onto Map
+    function renderMarkers(benches) {
+      // Clear existing markers
+      currentMarkers.forEach(marker => marker.remove());
+      currentMarkers = [];
+
+      benches.forEach(bench => {
+        const isAvailable = bench.available;
+        const pinClass = isAvailable ? "available" : "adopted";
+
+        const el = document.createElement("div");
+        el.className = `pin ${pinClass}`;
+
+        let popupHtml = `
+          <div style="min-width: 180px;">
+            <h4 style="margin: 0 0 4px 0; font-size: 0.95rem;">${bench.location}</h4>
+            <div style="font-size: 0.75rem; color: #666; margin-bottom: 6px;">ID: ${bench.id}</div>
+            <span class="popup-status ${pinClass}">
+              ${isAvailable ? "Available" : "Adopted"}
+            </span>
+        `;
+
+        if (!isAvailable && bench.current_adoption) {
+          popupHtml += `
+            <div style="margin-top: 8px; font-size: 0.8rem; border-top: 1px solid #eee; padding-top: 6px;">
+              <div><b>Dedicated by:</b> ${bench.current_adoption.donor_name}</div>
+              ${bench.current_adoption.dedication ? `<div style="font-style: italic; margin-top: 2px;">“${bench.current_adoption.dedication}”</div>` : ""}
+              <div style="color: #888; font-size: 0.72rem; margin-top: 4px;">Term ends: ${bench.current_adoption.end_date}</div>
+            </div>
+          `;
+        }
+
+        popupHtml += `</div>`;
+
+        const popup = new maplibregl.Popup({ offset: 12 }).setHTML(popupHtml);
+
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat([bench.longitude, bench.latitude])
+          .setPopup(popup)
+          .addTo(map);
+
+        currentMarkers.push(marker);
+      });
+
+      // Update count text
+      const countEl = document.getElementById("bench-count");
+      countEl.textContent = `Showing ${benches.length} of ${allBenches.length} benches`;
+    }
+
+    // 3. Filter Logic
+    function applyFilters() {
+      let filtered = allBenches;
+
+      // Part 1: Filter by Status
+      if (activeStatus === "available") {
+        filtered = filtered.filter(b => b.available);
+      } else if (activeStatus === "adopted") {
+        filtered = filtered.filter(b => !b.available);
+
+        // Part 2: Filter by End Date (only active if Adopted is selected)
+        if (activeDateFilter !== "all") {
+          filtered = filtered.filter(b => {
+            if (!b.current_adoption || !b.current_adoption.end_date) return false;
+            const endYear = parseInt(b.current_adoption.end_date.slice(0, 4), 10);
+
+            if (activeDateFilter === "soon") {
+              return endYear <= 2026;
+            } else if (activeDateFilter === "midterm") {
+              return endYear > 2026 && endYear <= 2032;
+            } else if (activeDateFilter === "recent") {
+              return endYear >= 2033;
+            }
+            return true;
+          });
+        }
+      }
+
+      renderMarkers(filtered);
+    }
+
+    // 4. UI Event Listeners
+    const dateSection = document.getElementById("date-filter-section");
+    const dateSelect = document.getElementById("date-select");
+
+    // Status button clicks
+    document.querySelectorAll(".filter-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        activeStatus = btn.dataset.status;
+
+        // Show Part 2 (End Date) ONLY if "Adopted" is selected
+        if (activeStatus === "adopted") {
+          dateSection.classList.add("visible");
+        } else {
+          dateSection.classList.remove("visible");
+          activeDateFilter = "all";
+          dateSelect.value = "all";
+        }
+
+        applyFilters();
+      });
+    });
+
+    // End date select change
+    dateSelect.addEventListener("change", (e) => {
+      activeDateFilter = e.target.value;
+      applyFilters();
+    });
+
+    // 5. Initial Load
+    const serverBenches = {{ benches | tojson if benches is defined else 'null' }};
+    map.on('load', () => {
+      if (serverBenches && serverBenches.length) {
+        allBenches = serverBenches;
+        applyFilters();
+      } else {
+        fetch('/api/benches')
+          .then(res => res.json())
+          .then(data => {
+            allBenches = data;
+            applyFilters();
+          })
+          .catch(err => console.error("Error loading benches:", err));
+      }
+    });
+  </script>
+</body>
+</html>

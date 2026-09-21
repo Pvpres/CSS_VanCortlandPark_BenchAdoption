@@ -1,0 +1,193 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #f7f9f8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+#map {
+  width: 100vw;
+  height: 100vh;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+/* Floating Filter Container (Compact & Square) */
+.filter-card {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 230px;
+}
+
+.filter-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+}
+
+/* Status Buttons */
+.filter-group {
+  display: flex;
+  background: #f3f4f6;
+  padding: 2px;
+  border-radius: 3px;
+  gap: 2px;
+}
+
+.filter-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 5px 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #4b5563;
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.12s ease;
+}
+
+.filter-btn:hover {
+  color: #111827;
+}
+
+.filter-btn.active {
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.dot.green { background: #16a34a; }
+.dot.yellow { background: #f59e0b; }
+
+/* Part 2: End Date Filter (Visible only when Adopted is selected) */
+.date-filter-section {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 6px;
+  border-top: 1px solid #e5e7eb;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.date-filter-section.visible {
+  display: flex;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.date-select {
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 3px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  font-size: 0.76rem;
+  color: #374151;
+  outline: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.date-select:focus {
+  border-color: #16a34a;
+}
+
+/* Live Bench Count Footer */
+.filter-footer {
+  font-size: 0.68rem;
+  color: #9ca3af;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Circular Pins */
+.pin {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2.5px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition: transform 0.18s ease;
+}
+
+.pin:hover {
+  transform: scale(1.35);
+}
+
+/* Green for Available */
+.pin.available {
+  background-color: #16a34a;
+}
+
+/* Yellow for Adopted */
+.pin.adopted {
+  background-color: #f59e0b;
+}
+
+/* Minimalist Popup */
+.maplibregl-popup-content {
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  font-family: inherit;
+}
+
+.popup-status {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+.popup-status.available {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.popup-status.adopted {
+  background: #fef3c7;
+  color: #b45309;
+}
+
