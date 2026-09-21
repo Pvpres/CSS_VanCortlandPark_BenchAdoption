@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from models import db, Bench, Adoption
+import datetime
 
 app = Flask(__name__)
 
@@ -67,6 +68,60 @@ def get_benches():
 
     return jsonify(full_list)
 
+@app.route("/api/benches/<bench_id>/adopt", methods=["POST"])
+def adopt_bench(bench_id):
+    # 1. Verify bench exists
+    bench = db.session.get(Bench, bench_id)
+    if not bench:
+        return jsonify({"error": "Bench not found"}), 404
+
+    # 2. Check if bench is already adopted
+    existing_adoption = Adoption.query.filter_by(bench_id=bench_id).first()
+    if existing_adoption:
+        return jsonify({"error": "Bench is already adopted"}), 400
+
+    # 3. Extract data from JSON or form submission
+    data = request.get_json() if request.is_json else request.form
+    
+    if not data or not data.get("donor_name") or not data.get("email"):
+        return jsonify({"error": "donor_name and email are required"}), 400
+
+    donor_name = data.get("donor_name").strip()
+    email = data.get("email").strip()
+    dedication = data.get("dedication", "").strip() or None
+
+    # 4. Calculate 10-year term dates
+    today = datetime.date.today()
+    start_date = today
+    try:
+        end_date = today.replace(year=today.year + 10)
+    except ValueError:
+        # Fallback for leap-year edge cases (e.g. Feb 29)
+        end_date = today + datetime.timedelta(days=365 * 10)
+
+    # 5. Create, save, and commit adoption record
+    new_adoption = Adoption(
+        bench_id=bench.id,
+        donor_name=donor_name,
+        email=email,
+        dedication=dedication,
+        start_date=start_date,
+        end_date=end_date
+    )
+    db.session.add(new_adoption)
+    db.session.commit()
+
+    return jsonify({
+        "message": f"Bench {bench_id} successfully adopted!",
+        "adoption": {
+            "bench_id": bench.id,
+            "donor_name": donor_name,
+            "dedication": dedication,
+            "start_date": str(start_date),
+            "end_date": str(end_date)
+        }
+    }), 201
+    
 if __name__ == '__main__':
     app.run(debug=True)
 
