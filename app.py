@@ -29,6 +29,29 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
+    # Auto-seed on startup if database is fresh/empty (e.g. initial launch on Render PostgreSQL)
+    try:
+        if Bench.query.count() == 0:
+            print("Database is empty. Automatically seeding 100 benches and initial adoptions...")
+            from seed import seed_benches, seed_adoptions
+            seed_benches()
+            seed_adoptions()
+    except Exception as e:
+        print(f"Auto-seed check: {e}")
+
+@app.route("/admin/seed", methods=["GET", "POST"])
+def admin_seed():
+    """Manual seed endpoint accessible in the browser for environments without shell access (e.g. Render Free)."""
+    from seed import seed_benches, seed_adoptions
+    reset = request.args.get("reset", "0") in ("1", "true", "True")
+    seed_benches(reset=reset)
+    seed_adoptions(reset=reset)
+    return jsonify({
+        "status": "success",
+        "message": "Database seeded successfully!",
+        "benches": Bench.query.count(),
+        "adoptions": Adoption.query.count()
+    })
 
 @app.route("/")
 def index():
