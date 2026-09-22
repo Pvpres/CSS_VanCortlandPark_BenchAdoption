@@ -554,4 +554,421 @@ select.form-input {
   color: #9ca3af;
 }
 
+/* ==========================================================================
+   Recommendation Wizard ("Find a bench for me") Styles
+   ========================================================================== */
+
+/* Top-Left Filter Action Button */
+.btn-find-bench {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  background: #15803d;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(21, 128, 61, 0.22);
+  transition: background 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.btn-find-bench:hover {
+  background: #166534;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(21, 128, 61, 0.3);
+}
+
+.btn-find-bench:active {
+  transform: translateY(0);
+}
+
+.btn-find-bench-icon {
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.filter-divider {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.08);
+  margin: 1px 0;
+}
+
+/* Hide filter card when docked recommendation sidebar is open */
+.filter-card.hidden {
+  display: none !important;
+}
+
+/* Spacious Recommendation Modal */
+.recommend-modal-box {
+  max-width: 540px;
+  width: 100%;
+  max-height: 90vh;
+  padding: 24px 26px;
+  border-radius: 8px;
+  overflow-y: auto;
+  gap: 16px;
+}
+
+.recommend-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Question 1: Vertical Option Stack */
+.option-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fafafa;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  user-select: none;
+}
+
+.option-card:hover {
+  background: #f4f5f7;
+  border-color: #cbd5e1;
+}
+
+.option-card input {
+  margin-top: 3px;
+  accent-color: #15803d;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.option-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.option-card-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.option-card-desc {
+  font-size: 0.74rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.option-card:has(input:checked) {
+  background: #f0fdf4;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 1px #16a34a;
+}
+
+.option-card:has(input:checked) .option-card-title {
+  color: #14532d;
+}
+
+/* Question 2: Spacious Dropdown */
+.form-select-spacious {
+  padding: 9px 12px;
+  font-size: 0.85rem;
+  background-color: #fafafa;
+}
+
+/* Question 3: Proximity Checkboxes (2-column spacious grid) */
+.checkbox-grid-clean {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.check-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fafafa;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  user-select: none;
+}
+
+.check-card:hover {
+  background: #f4f5f7;
+  border-color: #cbd5e1;
+}
+
+.check-card input {
+  accent-color: #15803d;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.check-card-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.check-card:has(input:checked) {
+  background: #f0fdf4;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 1px #16a34a;
+}
+
+.check-card:has(input:checked) .check-card-label {
+  color: #14532d;
+}
+
+/* ==========================================================================
+   Left-Side Docked Recommendations Sidebar (Point 2)
+   ========================================================================== */
+.rec-sidebar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 320px;
+  max-height: calc(100vh - 32px);
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  display: none;
+  flex-direction: column;
+  animation: slideInLeft 0.18s ease-out;
+}
+
+.rec-sidebar.open {
+  display: flex;
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.rec-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.rec-sidebar-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 2px;
+}
+
+.rec-sidebar-subtitle {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.rec-sidebar-close {
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  line-height: 0.8;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.rec-sidebar-close:hover {
+  color: #111827;
+  background: #f3f4f6;
+}
+
+.rec-sidebar-body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Secondary Option Cards in Left Sidebar */
+.rec-side-card {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.rec-side-card:hover {
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+}
+
+.rec-side-card.active {
+  background: #f0fdf4;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 1px #16a34a;
+}
+
+.rec-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.rec-rank-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #64748b;
+  color: #ffffff;
+}
+
+.rec-rank-badge.rank-1 {
+  background: #15803d;
+}
+
+.rec-score {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.rec-card-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.3;
+}
+
+.rec-card-meta {
+  font-size: 0.71rem;
+  color: #64748b;
+}
+
+.rec-tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.rec-tag {
+  font-size: 0.67rem;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.rec-side-card.active .rec-tag {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.rec-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.btn-rec-fly {
+  flex: 1;
+  padding: 5px 8px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btn-rec-fly:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.btn-rec-adopt {
+  padding: 5px 10px;
+  background: #15803d;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.btn-rec-adopt:hover {
+  background: #166534;
+}
+
+.rec-sidebar-footer {
+  padding: 8px 12px;
+  border-top: 1px solid #e5e7eb;
+  background: #f8fafc;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+.btn-rec-modify {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btn-rec-modify:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.rec-empty-state {
+  text-align: center;
+  padding: 20px 10px;
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+
 

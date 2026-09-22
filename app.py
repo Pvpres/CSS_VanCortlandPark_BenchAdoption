@@ -2,6 +2,8 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from models import db, Bench, Adoption
 import datetime
 import calendar
+import heapq
+import random
 
 def add_months(sourcedate, months):
     """Add a given number of months to a date, correctly handling leap years and month boundaries."""
@@ -148,6 +150,92 @@ def adopt_bench(bench_id):
         }
     }), 201
     
+
+@app.route("/api/benches/recommend", methods=["POST"])
+def recommend_bench():
+    data = request.get_json(silent=True) or {}
+
+    pref_setting = data.get("setting")            
+    pref_area = data.get("area")                 
+    pref_features = data.get("preferences", [])   
+
+    if not isinstance(pref_features, list):
+        pref_features = []
+
+    allowed_features = {
+        "near_lake": "Near Lake / Water",
+        "near_entrance": "Near Park Entrance",
+        "near_trail": "Near Nature Trail",
+        "near_recreational_facility": "Near Recreational Facility"
+    }
+    valid_features = [f for f in pref_features if f in allowed_features]
+    
+    # 1. Fetch available benches
+    adopted_ids = {a.bench_id for a in Adoption.query.all()}
+    available_benches = [b for b in Bench.query.all() if b.id not in adopted_ids]
+    
+    if not available_benches:
+        return jsonify({
+            "message": "No benches currently available for adoption.",
+            "recommendations": []
+        }), 200
+
+    # 2. Shuffle to break ties fairly among equal scores
+    random.shuffle(available_benches)
+
+    # 3. Score benches (+1 for each match)
+    ranked = []
+    for bench in available_benches:
+        score = 0
+        reasons = []
+
+        # Setting match (+1)
+        if pref_setting and bench.setting and bench.setting.lower() == pref_setting.lower():
+            score += 1
+            reasons.append(f"{bench.setting.capitalize()} setting")
+
+        # Area match (+1)
+        if pref_area and bench.area and bench.area.lower() == pref_area.lower():
+            score += 1
+            reasons.append(f"Located in {bench.area}")
+
+        # Proximity flags match (+1 each)
+        for feat in valid_features:
+            if getattr(bench, feat, False):
+                score += 1
+                reasons.append(allowed_features[feat])
+
+        ranked.append({
+            "bench": {
+                "id": bench.id,
+                "location": bench.location,
+                "area": bench.area,
+                "setting": bench.setting,
+                "latitude": bench.latitude,
+                "longitude": bench.longitude,
+                "near_lake": bench.near_lake,
+                "near_entrance": bench.near_entrance,
+                "near_trail": bench.near_trail,
+                "near_recreational_facility": bench.near_recreational_facility,
+            },
+            "score": score,
+            "reasons": reasons
+        })
+
+    # 4. Use min-heap via heapq.nlargest for O(N log K) time complexity with K = 5
+    positive_scored = [b for b in ranked if b["score"] > 0]
+    if positive_scored:
+        top_5 = heapq.nlargest(5, positive_scored, key=lambda x: x["score"])
+    else:
+        # Fallback if no criteria matched: return 5 random available benches
+        top_5 = heapq.nlargest(5, ranked, key=lambda x: x["score"])
+
+    return jsonify({
+        "total_available": len(available_benches),
+        "total_matching": len(positive_scored),
+        "recommendations": top_5
+    }), 200
+
 if __name__ == '__main__':
     app.run(debug=True)
 

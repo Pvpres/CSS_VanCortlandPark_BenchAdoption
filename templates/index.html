@@ -17,7 +17,16 @@
   <div id="map"></div>
 
   <!-- Floating Filter Card -->
-  <div class="filter-card">
+  <div class="filter-card" id="filter-card">
+    <!-- Recommendation Action Button -->
+    <button type="button" class="btn-find-bench" id="btn-open-recommend" onclick="openRecommendModal()">
+      <svg class="btn-find-bench-icon" viewBox="0 0 20 20" fill="currentColor" width="13" height="13">
+        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
+      </svg>
+      <span>Find a bench for me</span>
+    </button>
+    <div class="filter-divider"></div>
+
     <div class="filter-title">Filter Benches</div>
 
     <!-- Part 1: Status Filter -->
@@ -40,6 +49,21 @@
 
     <div class="filter-footer">
       <span id="bench-count">Showing all benches</span>
+    </div>
+  </div>
+
+  <!-- Left-Side Docked Recommendations Sidebar (Point 2) -->
+  <div class="rec-sidebar" id="rec-sidebar">
+    <div class="rec-sidebar-header">
+      <div>
+        <div class="rec-sidebar-title">Recommended Benches</div>
+        <div class="rec-sidebar-subtitle" id="rec-sidebar-subtitle">Top matches based on your answers</div>
+      </div>
+      <button type="button" class="rec-sidebar-close" id="btn-close-rec-sidebar" onclick="closeRecSidebar()" aria-label="Dismiss recommendations panel">&times;</button>
+    </div>
+    <div class="rec-sidebar-body" id="rec-sidebar-list"></div>
+    <div class="rec-sidebar-footer">
+      <button type="button" class="btn-rec-modify" onclick="openRecommendModal()">Change Answers</button>
     </div>
   </div>
 
@@ -89,6 +113,101 @@
         <div class="modal-actions">
           <button type="button" class="btn-cancel" onclick="closeAdoptModal()">Cancel</button>
           <button type="submit" class="btn-submit" id="btn-submit-adopt">Adopt for 10 Years</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Recommendation Wizard Modal (Spacious & Clean) -->
+  <div class="modal-backdrop" id="recommend-modal">
+    <div class="modal-box recommend-modal-box">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title">Find Your Ideal Bench</h3>
+          <div class="modal-subtitle">Select your preferences to discover the best matching benches.</div>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeRecommendModal()" aria-label="Close modal">&times;</button>
+      </div>
+
+      <form id="recommend-form" class="recommend-form">
+        <!-- Question 1: Atmosphere (Vertical Option Stack) -->
+        <div class="form-group">
+          <label class="form-label">1. Desired Atmosphere</label>
+          <div class="option-stack">
+            <label class="option-card">
+              <input type="radio" name="rec-setting" value="" checked />
+              <div class="option-card-content">
+                <span class="option-card-title">Any Atmosphere</span>
+                <span class="option-card-desc">Show all available environments across the park</span>
+              </div>
+            </label>
+            <label class="option-card">
+              <input type="radio" name="rec-setting" value="quiet" />
+              <div class="option-card-content">
+                <span class="option-card-title">Quiet & Peaceful</span>
+                <span class="option-card-desc">Deep woodlands, nature trails, wetland boardwalks, and Memorial Grove</span>
+              </div>
+            </label>
+            <label class="option-card">
+              <input type="radio" name="rec-setting" value="active" />
+              <div class="option-card-content">
+                <span class="option-card-title">Active & Lively</span>
+                <span class="option-card-desc">Parade Ground fields, running tracks, playgrounds, and entrance plazas</span>
+              </div>
+            </label>
+            <label class="option-card">
+              <input type="radio" name="rec-setting" value="scenic" />
+              <div class="option-card-content">
+                <span class="option-card-title">Scenic Views</span>
+                <span class="option-card-desc">Vault Hill overlooks, lake promenade bridge, mill pond, and sunset points</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Question 2: Landscape / Area -->
+        <div class="form-group">
+          <label class="form-label" for="rec-area-select">2. Preferred Environment</label>
+          <select id="rec-area-select" class="form-input form-select-spacious">
+            <option value="">Any Environment</option>
+            <option value="Woodland">Woodlands & Forest</option>
+            <option value="Lakeside">Lakeside & Shoreline</option>
+            <option value="Wetland">Wetland & Marsh</option>
+            <option value="Open Meadow">Open Meadow & Hills</option>
+            <option value="Historic Grounds">Historic Grounds & Museum</option>
+            <option value="Sports Field">Sports & Recreation Field</option>
+            <option value="Park Entrance">Park Entrance & Gateways</option>
+            <option value="Golf Course">Golf Course</option>
+            <option value="Playground">Playground & Family Area</option>
+          </select>
+        </div>
+
+        <!-- Question 3: Proximity / Amenities -->
+        <div class="form-group">
+          <label class="form-label">3. What should be nearby?</label>
+          <div class="checkbox-grid-clean">
+            <label class="check-card">
+              <input type="checkbox" name="rec-pref" value="near_lake" />
+              <span class="check-card-label">Lake or water body</span>
+            </label>
+            <label class="check-card">
+              <input type="checkbox" name="rec-pref" value="near_trail" />
+              <span class="check-card-label">Hiking or nature trail</span>
+            </label>
+            <label class="check-card">
+              <input type="checkbox" name="rec-pref" value="near_recreational_facility" />
+              <span class="check-card-label">Sports, track, or play</span>
+            </label>
+            <label class="check-card">
+              <input type="checkbox" name="rec-pref" value="near_entrance" />
+              <span class="check-card-label">Park entrance or transit</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" onclick="closeRecommendModal()">Cancel</button>
+          <button type="submit" class="btn-submit" id="btn-submit-recommend">Find Matching Benches</button>
         </div>
       </form>
     </div>
@@ -394,7 +513,11 @@
     });
 
     window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeAdoptModal();
+      if (e.key === "Escape") {
+        closeAdoptModal();
+        closeRecommendModal();
+        closeRecSidebar();
+      }
     });
 
     // Form submit handler
@@ -461,7 +584,189 @@
       }, 3500);
     }
 
-    // 7. Filter Event Listeners
+    // ==========================================
+    // 7. Recommendation Wizard & Sidebar Logic
+    // ==========================================
+    let currentRecommendations = [];
+    let recPopup = null;
+
+    function openRecommendModal() {
+      currentMarkers.forEach(m => {
+        const p = m.getPopup();
+        if (p && p.isOpen()) p.remove();
+      });
+      if (recPopup && recPopup.isOpen()) recPopup.remove();
+
+      document.getElementById("recommend-modal").classList.add("open");
+    }
+
+    function closeRecommendModal() {
+      document.getElementById("recommend-modal").classList.remove("open");
+    }
+
+    function closeRecSidebar() {
+      document.getElementById("rec-sidebar").classList.remove("open");
+      document.getElementById("filter-card").classList.remove("hidden");
+      if (recPopup && recPopup.isOpen()) {
+        recPopup.remove();
+      }
+    }
+
+    document.getElementById("recommend-modal").addEventListener("click", (e) => {
+      if (e.target.id === "recommend-modal") closeRecommendModal();
+    });
+
+    // Handle questionnaire submission
+    document.getElementById("recommend-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const submitBtn = document.getElementById("btn-submit-recommend");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Finding matches...";
+
+      const settingRadio = document.querySelector('input[name="rec-setting"]:checked');
+      const setting = settingRadio ? settingRadio.value : "";
+      const area = document.getElementById("rec-area-select").value;
+      const prefCheckboxes = document.querySelectorAll('input[name="rec-pref"]:checked');
+      const preferences = Array.from(prefCheckboxes).map(cb => cb.value);
+
+      const payload = {};
+      if (setting) payload.setting = setting;
+      if (area) payload.area = area;
+      if (preferences.length) payload.preferences = preferences;
+
+      try {
+        const res = await fetch("/api/benches/recommend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        closeRecommendModal();
+        showRecommendationsSidebar(data.recommendations || []);
+      } catch (err) {
+        console.error("Recommendation error:", err);
+        showToast("Error finding matches. Please try again.");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Find Matching Benches";
+      }
+    });
+
+    function showRecommendationsSidebar(recommendations) {
+      currentRecommendations = recommendations;
+      const sidebar = document.getElementById("rec-sidebar");
+      const listEl = document.getElementById("rec-sidebar-list");
+      const subtitleEl = document.getElementById("rec-sidebar-subtitle");
+      const filterCard = document.getElementById("filter-card");
+
+      listEl.innerHTML = "";
+
+      if (!recommendations || !recommendations.length) {
+        subtitleEl.textContent = "No matches found";
+        listEl.innerHTML = `
+          <div class="rec-empty-state">
+            No available benches matched all your criteria. Try choosing fewer preferences or broader settings!
+          </div>
+        `;
+      } else {
+        subtitleEl.textContent = `${recommendations.length} benches recommended`;
+
+        recommendations.forEach((item, index) => {
+          const bench = item.bench;
+          const isTop = index === 0;
+          const card = document.createElement("div");
+          card.className = `rec-side-card ${isTop ? "active" : ""}`;
+          card.id = `rec-card-${bench.id}`;
+
+          const reasonsHtml = (item.reasons || [])
+            .map(r => `<span class="rec-tag">${r}</span>`)
+            .join("");
+
+          card.innerHTML = `
+            <div class="rec-card-header">
+              <span class="rec-rank-badge ${isTop ? "rank-1" : ""}">${isTop ? "Top Match" : "#" + (index + 1)}</span>
+              <span class="rec-score">${item.score > 0 ? item.score + " pts" : ""}</span>
+            </div>
+            <div class="rec-card-title">${bench.location}</div>
+            <div class="rec-card-meta">ID: ${bench.id} • ${bench.area || "Park Bench"}${bench.setting ? " • " + bench.setting.charAt(0).toUpperCase() + bench.setting.slice(1) : ""}</div>
+            ${reasonsHtml ? `<div class="rec-tags-row">${reasonsHtml}</div>` : ""}
+            <div class="rec-card-actions">
+              <button type="button" class="btn-rec-fly" onclick="event.stopPropagation(); selectRecommendedBench('${bench.id}')">View on Map</button>
+              <button type="button" class="btn-rec-adopt" onclick="event.stopPropagation(); adoptFromRecommend('${bench.id}')">Adopt</button>
+            </div>
+          `;
+
+          card.addEventListener("click", () => selectRecommendedBench(bench.id));
+          listEl.appendChild(card);
+        });
+
+        // Automatically focus on and fly to the #1 top match
+        selectRecommendedBench(recommendations[0].bench.id);
+      }
+
+      // Slot the sidebar on the left and temporarily tuck away the filter card
+      filterCard.classList.add("hidden");
+      sidebar.classList.add("open");
+    }
+
+    function selectRecommendedBench(benchId) {
+      // Highlight active card in sidebar
+      document.querySelectorAll(".rec-side-card").forEach(c => c.classList.remove("active"));
+      const activeCard = document.getElementById(`rec-card-${benchId}`);
+      if (activeCard) {
+        activeCard.classList.add("active");
+        activeCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+
+      // Ensure available benches are shown in status filter
+      if (activeStatus === "adopted") {
+        activeStatus = "all";
+        document.querySelectorAll(".filter-btn").forEach(btn => {
+          btn.classList.toggle("active", btn.dataset.status === "all");
+        });
+        document.getElementById("date-filter-section").classList.remove("visible");
+        renderMarkers();
+      }
+
+      const bench = allBenches.find(b => b.id === benchId);
+      if (!bench) return;
+
+      if (recPopup && recPopup.isOpen()) {
+        recPopup.remove();
+      }
+
+      map.flyTo({
+        center: [bench.longitude, bench.latitude],
+        zoom: 17,
+        essential: true
+      });
+
+      setTimeout(() => {
+        const popupHtml = `
+          <div class="popup-content-inner">
+            <h4 class="popup-title">${bench.location}</h4>
+            <div class="popup-id">ID: ${bench.id} • Recommended Match</div>
+            <span class="popup-status available">Available</span>
+            <button type="button" class="btn-adopt-popup" onclick="openAdoptModal('${bench.id}')">
+              Adopt this Bench
+            </button>
+          </div>
+        `;
+
+        recPopup = new maplibregl.Popup({ offset: 12, closeButton: true })
+          .setLngLat([bench.longitude, bench.latitude])
+          .setHTML(popupHtml)
+          .addTo(map);
+      }, 450);
+    }
+
+    function adoptFromRecommend(benchId) {
+      openAdoptModal(benchId);
+    }
+
+    // 8. Filter Event Listeners
     const dateSection = document.getElementById("date-filter-section");
     const dateSelect = document.getElementById("date-select");
 
