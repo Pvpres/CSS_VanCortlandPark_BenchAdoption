@@ -1610,11 +1610,16 @@ def seed_benches(reset=False):
         db.session.commit()
         print(f"Successfully seeded {len(BENCHES)} benches ({new_count} new, {len(BENCHES) - new_count} updated).")
 
-def seed_adoptions():
+def seed_adoptions(reset=False):
     with app.app_context():
-        # Clear out existing adoptions so we have an exact 35% adoption rate
-        Adoption.query.delete()
-        db.session.commit()
+        existing_count = Adoption.query.count()
+        if existing_count > 0 and not reset:
+            print(f"Adoptions table already contains {existing_count} records. Skipping seed (pass reset=True to force).")
+            return
+
+        if reset:
+            Adoption.query.delete()
+            db.session.commit()
 
         new_count = 0
         for data in ADOPTIONS:
