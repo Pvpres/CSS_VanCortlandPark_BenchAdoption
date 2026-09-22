@@ -267,6 +267,43 @@ def recommend_bench():
         "recommendations": top_5
     }), 200
 
+@app.route("/api/locate", methods=["GET", "POST"])
+def locate_adoption():
+    if request.method == "GET":
+        data = request.args
+    else:
+        data = request.get_json(silent=True) if request.is_json else (request.form or {})
+
+    donor_query = (data.get("donor_name") or "").strip()
+    if not donor_query:
+        return jsonify({"error": "donor_name is required"}), 400
+
+    matches = db.session.query(Bench, Adoption).join(
+        Adoption, Bench.id == Adoption.bench_id
+    ).filter(
+        Adoption.donor_name.ilike(f"%{donor_query}%")
+    ).all()
+
+    return jsonify({
+        "count": len(matches),
+        "benches": [
+            {
+                "id": bench.id,
+                "location": bench.location,
+                "area": bench.area,
+                "latitude": bench.latitude,
+                "longitude": bench.longitude,
+                "adoption": {
+                    "donor_name": adoption.donor_name,
+                    "dedication": adoption.dedication,
+                    "start_date": str(adoption.start_date),
+                    "end_date": str(adoption.end_date)
+                }
+            }
+            for bench, adoption in matches
+        ]
+    }), 200
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     debug = os.environ.get("FLASK_DEBUG", "0") in ("1", "true", "True")
