@@ -14,6 +14,105 @@ def add_months(sourcedate, months):
     day = min(sourcedate.day, calendar.monthrange(year, month)[1])
     return datetime.date(year, month, day)
 
+def format_duration_text(months):
+    """Format duration in months into a clean, human-readable label (e.g. '10 Years', '6 Months')."""
+    if not months:
+        return "Adoption"
+    years = months // 12
+    rem = months % 12
+    if rem == 0:
+        return f"{years} Year" if years == 1 else f"{years} Years"
+    elif years == 0:
+        return f"{rem} Month" if rem == 1 else f"{rem} Months"
+    else:
+        return f"{years} yr, {rem} mo"
+
+def format_date_display(d):
+    """Format date into 'Mon DD, YYYY' format."""
+    if not d:
+        return ""
+    if hasattr(d, "strftime"):
+        return d.strftime("%b %-d, %Y")
+    return str(d)
+
+def calculate_tenure_details(adoption, today=None):
+    """Compute comprehensive tenure, countdown, and progress bar metrics for an adoption record."""
+    if today is None:
+        today = datetime.date.today()
+
+    start_date = adoption.start_date
+    end_date = adoption.end_date
+
+    duration_months = adoption.duration_months
+    if not duration_months and start_date and end_date:
+        duration_months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
+    if not duration_months or duration_months <= 0:
+        duration_months = 120
+
+    total_days = max(1, (end_date - start_date).days) if (start_date and end_date) else 1
+    elapsed_days = (today - start_date).days if start_date else 0
+    remaining_days = (end_date - today).days if end_date else 0
+
+    percent_complete = max(0, min(100, int(round((elapsed_days / total_days) * 100))))
+    is_expired = remaining_days < 0
+    # Ending soon if active and expiring within ~6 months (180 days)
+    is_ending_soon = (not is_expired) and (remaining_days <= 180)
+
+    # Elapsed human text
+    if elapsed_days < 0:
+        elapsed_text = "Starts soon"
+    elif elapsed_days < 30:
+        elapsed_text = f"{elapsed_days} day{'s' if elapsed_days != 1 else ''}"
+    elif elapsed_days < 365:
+        m = max(1, elapsed_days // 30)
+        elapsed_text = f"{m} month{'s' if m != 1 else ''}"
+    else:
+        y = elapsed_days // 365
+        rem_m = (elapsed_days % 365) // 30
+        if rem_m == 0:
+            elapsed_text = f"{y} year{'s' if y != 1 else ''}"
+        else:
+            elapsed_text = f"{y} yr{'s' if y != 1 else ''}, {rem_m} mo"
+
+    # Remaining human countdown text
+    if is_expired:
+        remaining_text = "Term Expired"
+    elif remaining_days == 0:
+        remaining_text = "Expires today"
+    elif remaining_days == 1:
+        remaining_text = "Expires tomorrow"
+    elif remaining_days < 30:
+        remaining_text = f"{remaining_days} days left"
+    elif remaining_days < 365:
+        m = max(1, round(remaining_days / 30.4))
+        remaining_text = f"~{m} month{'s' if m != 1 else ''} left"
+    else:
+        y = remaining_days // 365
+        rem_m = round((remaining_days % 365) / 30.4)
+        if rem_m == 0:
+            remaining_text = f"~{y} year{'s' if y != 1 else ''} left"
+        else:
+            remaining_text = f"~{y} yr, {rem_m} mo left"
+
+    return {
+        "donor_name": adoption.donor_name,
+        "dedication": adoption.dedication,
+        "start_date": str(start_date) if start_date else "",
+        "end_date": str(end_date) if end_date else "",
+        "start_date_formatted": format_date_display(start_date),
+        "end_date_formatted": format_date_display(end_date),
+        "duration_months": duration_months,
+        "duration_text": format_duration_text(duration_months),
+        "elapsed_days": elapsed_days,
+        "remaining_days": remaining_days,
+        "elapsed_text": elapsed_text,
+        "remaining_text": remaining_text,
+        "percent_complete": percent_complete,
+        "is_ending_soon": is_ending_soon,
+        "is_expired": is_expired,
+        "status": "expired" if is_expired else ("ending_soon" if is_ending_soon else "adopted")
+    }
+
 app = Flask(__name__)
 
 # Database configuration: fallback to local SQLite, or use DATABASE_URL from environment (Postgres/MySQL)
@@ -60,46 +159,28 @@ def index():
 
 @app.route("/api/benches", methods=["GET"])
 def get_benches():
-    """Steps
-    1. Get all active entries from adoptions table and all available benches from benches table
-    2. cross reference into one dictionary/json format
-                    For available benches:
-                    {
-                        "id": "VC-001",
-                        "latitude": 40.897,
-                        "longitude": -73.886,
-                        "location": "Parade Ground",
-                        "available": true,
-                        "current_adoption": null
-                    }
-                    For adopted benches:
-                    {
-                    "id": "VC-002",
-                    "latitude": 40.898,
-                    "longitude": -73.885,
-                    "location": "Lake Trail",
-                    "available": false,
-                    "current_adoption": {
-                        "donor_name": "Smith Family",
-                        "end_date": "2028-06-01"
-                    }
-                    (the adoption is a json within the json)"""
+    today = datetime.date.today()
     benches = Bench.query.all()
     adoptions = Adoption.query.all()
-    adoptions_keys_public = ["donor_name", "dedication", "start_date", "end_date"]
     
-    #removes admin info from adoption entity and returns keys matched to bench_id only those needed by frontend
-    adoptions_by_bench_id = {
-        a.bench_id: {
-            key: str(getattr(a, key)) if hasattr(getattr(a, key), "isoformat") else getattr(a, key)
-            for key in adoptions_keys_public
-        }
-        for a in adoptions
-    }
+    # Calculate detailed tenure metrics for adoptions
+    adoptions_by_bench_id = {}
+    for a in adoptions:
+        details = calculate_tenure_details(a, today)
+        existing = adoptions_by_bench_id.get(a.bench_id)
+        # Prefer active (non-expired) adoptions
+        if not existing or (existing["is_expired"] and not details["is_expired"]):
+            adoptions_by_bench_id[a.bench_id] = details
+
     full_list = []
-    
     for bench in benches:
-        matching_adoption = adoptions_by_bench_id.get(bench.id)
+        adoption_info = adoptions_by_bench_id.get(bench.id)
+        is_available = adoption_info is None or adoption_info.get("is_expired", False)
+
+        bench_status = "available"
+        if not is_available:
+            bench_status = "ending_soon" if adoption_info.get("is_ending_soon") else "adopted"
+
         full_list.append({
             "id": bench.id,
             "latitude": bench.latitude,
@@ -111,23 +192,26 @@ def get_benches():
             "near_entrance": bench.near_entrance,
             "near_trail": bench.near_trail,
             "near_recreational_facility": bench.near_recreational_facility,
-            "available": matching_adoption is None,
-            "current_adoption": matching_adoption
+            "available": is_available,
+            "status": bench_status,
+            "current_adoption": adoption_info if not is_available else None,
+            "past_adoption": adoption_info if is_available and adoption_info else None
         })
 
     return jsonify(full_list)
 
 @app.route("/api/benches/<bench_id>/adopt", methods=["POST"])
 def adopt_bench(bench_id):
+    today = datetime.date.today()
     # 1. Verify bench exists
     bench = db.session.get(Bench, bench_id)
     if not bench:
         return jsonify({"error": "Bench not found"}), 404
 
-    # 2. Check if bench is already adopted
-    existing_adoption = Adoption.query.filter_by(bench_id=bench_id).first()
+    # 2. Check if bench is already actively adopted
+    existing_adoption = Adoption.query.filter_by(bench_id=bench_id).filter(Adoption.end_date >= today).first()
     if existing_adoption:
-        return jsonify({"error": "Bench is already adopted"}), 400
+        return jsonify({"error": "Bench is currently adopted"}), 400
 
     # 3. Extract data from JSON or form submission
     data = request.get_json() if request.is_json else request.form
@@ -153,7 +237,6 @@ def adopt_bench(bench_id):
         return jsonify({"error": "Adoption length must be between 6 months and 10 years (6 to 120 months)"}), 400
 
     # 5. Calculate term dates
-    today = datetime.date.today()
     start_date = today
     end_date = add_months(today, duration_months)
 
@@ -164,21 +247,17 @@ def adopt_bench(bench_id):
         email=email,
         dedication=dedication,
         start_date=start_date,
-        end_date=end_date
+        end_date=end_date,
+        duration_months=duration_months
     )
     db.session.add(new_adoption)
     db.session.commit()
 
+    tenure_details = calculate_tenure_details(new_adoption, today)
+
     return jsonify({
         "message": f"Bench {bench_id} successfully adopted!",
-        "adoption": {
-            "bench_id": bench.id,
-            "donor_name": donor_name,
-            "dedication": dedication,
-            "start_date": str(start_date),
-            "end_date": str(end_date),
-            "duration_months": duration_months
-        }
+        "adoption": tenure_details
     }), 201
     
 
@@ -201,8 +280,10 @@ def recommend_bench():
     }
     valid_features = [f for f in pref_features if f in allowed_features]
     
-    # 1. Fetch available benches
-    adopted_ids = {a.bench_id for a in Adoption.query.all()}
+    # 1. Fetch available benches (exclude currently active adoptions)
+    today = datetime.date.today()
+    active_adoptions = Adoption.query.filter(Adoption.end_date >= today).all()
+    adopted_ids = {a.bench_id for a in active_adoptions}
     available_benches = [b for b in Bench.query.all() if b.id not in adopted_ids]
     
     if not available_benches:
@@ -269,6 +350,7 @@ def recommend_bench():
 
 @app.route("/api/locate", methods=["GET", "POST"])
 def locate_adoption():
+    today = datetime.date.today()
     if request.method == "GET":
         data = request.args
     else:
@@ -293,12 +375,7 @@ def locate_adoption():
                 "area": bench.area,
                 "latitude": bench.latitude,
                 "longitude": bench.longitude,
-                "adoption": {
-                    "donor_name": adoption.donor_name,
-                    "dedication": adoption.dedication,
-                    "start_date": str(adoption.start_date),
-                    "end_date": str(adoption.end_date)
-                }
+                "adoption": calculate_tenure_details(adoption, today)
             }
             for bench, adoption in matches
         ]

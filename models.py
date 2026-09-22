@@ -32,7 +32,7 @@ class Adoption(db.Model):
     dedication = db.Column(db.String)
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
-    
+    duration_months = db.Column(db.Integer, nullable=True)
 
     
     

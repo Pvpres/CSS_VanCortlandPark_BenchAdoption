@@ -1571,9 +1571,11 @@ def seed_benches(reset=False):
         # Ensure tables exist and contain new columns
         from sqlalchemy import inspect
         inspector = inspect(db.engine)
-        if "bench" in inspector.get_table_names():
-            columns = [c["name"] for c in inspector.get_columns("bench")]
-            if "setting" not in columns or reset:
+        table_names = inspector.get_table_names()
+        if "bench" in table_names:
+            bench_cols = [c["name"] for c in inspector.get_columns("bench")]
+            adoption_cols = [c["name"] for c in inspector.get_columns("adoption")] if "adoption" in table_names else []
+            if "setting" not in bench_cols or "duration_months" not in adoption_cols or reset:
                 db.drop_all()
 
         db.create_all()
@@ -1629,7 +1631,8 @@ def seed_adoptions(reset=False):
                 email=data["email"],
                 dedication=data["dedication"],
                 start_date=data["start_date"],
-                end_date=data["end_date"]
+                end_date=data["end_date"],
+                duration_months=data.get("duration_months")
             )
             db.session.add(adoption)
             new_count += 1

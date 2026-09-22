@@ -34,6 +34,7 @@
       <button class="filter-btn active" data-status="all">All</button>
       <button class="filter-btn" data-status="available"><span class="dot green"></span>Available</button>
       <button class="filter-btn" data-status="adopted"><span class="dot yellow"></span>Adopted</button>
+      <button class="filter-btn" data-status="ending_soon"><span class="dot blue"></span>Ending Soon</button>
     </div>
 
     <!-- Part 2: End Date Filter (Only for Adopted) -->
@@ -41,9 +42,9 @@
       <div class="filter-title">Adoption Expiration</div>
       <select class="date-select" id="date-select">
         <option value="all">All Expiration Dates</option>
-        <option value="soon">Ending Soon (2026 / This Year)</option>
-        <option value="midterm">Midterm (2027 – 2032)</option>
-        <option value="recent">Recently Created (2033+)</option>
+        <option value="soon">Ending Soon (&le; 6 Months)</option>
+        <option value="midterm">Midterm (1 – 5 Years)</option>
+        <option value="longterm">Longterm (5+ Years)</option>
       </select>
     </div>
 
@@ -270,16 +271,18 @@
 
       if (activeStatus === "available") {
         filtered = filtered.filter(b => b.available);
+      } else if (activeStatus === "ending_soon") {
+        filtered = filtered.filter(b => b.current_adoption && b.current_adoption.is_ending_soon);
       } else if (activeStatus === "adopted") {
         filtered = filtered.filter(b => !b.available);
 
         if (activeDateFilter !== "all") {
           filtered = filtered.filter(b => {
-            if (!b.current_adoption || !b.current_adoption.end_date) return false;
-            const endYear = parseInt(b.current_adoption.end_date.slice(0, 4), 10);
-            if (activeDateFilter === "soon") return endYear <= 2026;
-            if (activeDateFilter === "midterm") return endYear > 2026 && endYear <= 2032;
-            if (activeDateFilter === "recent") return endYear >= 2033;
+            if (!b.current_adoption) return false;
+            const remaining = b.current_adoption.remaining_days;
+            if (activeDateFilter === "soon") return remaining >= 0 && remaining <= 180;
+            if (activeDateFilter === "midterm") return remaining > 180 && remaining <= 1825;
+            if (activeDateFilter === "longterm") return remaining > 1825;
             return true;
           });
         }
@@ -365,6 +368,59 @@
       });
     }
 
+    // 4.5. Render Tenure Card Helper
+    function renderTenureCard(adoption) {
+      if (!adoption) return "";
+      const isEndingSoon = !!adoption.is_ending_soon;
+      const isExpired = !!adoption.is_expired;
+      const percent = adoption.percent_complete != null ? adoption.percent_complete : 100;
+      const durationText = adoption.duration_text || "Adoption";
+      const startDateStr = adoption.start_date_formatted || adoption.start_date || "—";
+      const endDateStr = adoption.end_date_formatted || adoption.end_date || "—";
+      const elapsedText = adoption.elapsed_text || "—";
+      const remainingText = adoption.remaining_text || "";
+
+      return `
+        <div class="popup-adoption-details">
+          <div class="popup-donor-name"><b>Dedicated by:</b> ${adoption.donor_name}</div>
+          ${adoption.dedication ? `<div class="popup-dedication">“${adoption.dedication}”</div>` : ""}
+
+          <div class="adoption-tenure-card">
+            <div class="tenure-header">
+              <span class="tenure-badge">${durationText} Adoption</span>
+              ${isEndingSoon ? `<span class="tenure-expiring-badge">Ending Soon</span>` : ""}
+              ${isExpired ? `<span class="tenure-expired-badge">Expired</span>` : ""}
+            </div>
+
+            <!-- Visual Progress Bar -->
+            <div class="tenure-progress-track">
+              <div class="tenure-progress-fill ${isEndingSoon ? 'ending-soon' : (isExpired ? 'expired' : '')}" style="width: ${percent}%"></div>
+            </div>
+
+            <!-- Date Milestones -->
+            <div class="tenure-dates-row">
+              <div class="tenure-date-col">
+                <span class="tenure-date-label">Adopted</span>
+                <span class="tenure-date-val">${startDateStr}</span>
+              </div>
+              <div class="tenure-date-col text-right">
+                <span class="tenure-date-label">Term Ends</span>
+                <span class="tenure-date-val">${endDateStr}</span>
+              </div>
+            </div>
+
+            <!-- Elapsed & Remaining Countdown -->
+            <div class="tenure-countdown-row">
+              <span class="tenure-elapsed"><b>Elapsed:</b> ${elapsedText} (${percent}%)</span>
+              <span class="tenure-remaining ${isEndingSoon ? 'urgent' : ''}">
+                <b>${remainingText}</b>
+              </span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     // 5. Render Markers & Clusters onto Map (Styled purely via CSS classes)
     function renderMarkers() {
       currentMarkers.forEach(m => m.remove());
@@ -376,6 +432,7 @@
       clusters.forEach(item => {
         if (item.isCluster) {
           const availCount = item.benches.filter(b => b.available).length;
+          const endingSoonCount = item.benches.filter(b => b.current_adoption && b.current_adoption.is_ending_soon).length;
           const adoptedCount = item.pointCount - availCount;
 
           let statusClass = "mixed";
@@ -395,6 +452,7 @@
               <div class="cluster-tooltip-breakdown">
                 <span class="dot green"></span> ${availCount} Available
                 &nbsp;•&nbsp;
+                ${endingSoonCount > 0 ? `<span class="dot blue"></span> ${endingSoonCount} Ending Soon &nbsp;•&nbsp;` : ""}
                 <span class="dot yellow"></span> ${adoptedCount} Adopted
               </div>
               <div class="cluster-tooltip-hint">Click to zoom in</div>
@@ -422,21 +480,33 @@
             .addTo(map);
           currentMarkers.push(marker);
         } else {
-          // Individual bench marker styled in style.css (.pin.available / .pin.adopted)
+          // Individual bench marker styled in style.css (.pin.available / .pin.adopted / .pin.ending-soon)
           const bench = item.bench;
           const isAvailable = bench.available;
-          const pinClass = isAvailable ? "available" : "adopted";
+          const isEndingSoon = bench.current_adoption && bench.current_adoption.is_ending_soon;
+
+          let pinClass = "available";
+          let statusLabel = "Available";
+          if (!isAvailable) {
+            if (isEndingSoon) {
+              pinClass = "ending-soon";
+              statusLabel = "Ending Soon";
+            } else {
+              pinClass = "adopted";
+              statusLabel = "Adopted";
+            }
+          }
 
           const el = document.createElement("div");
           el.className = `pin ${pinClass}`;
-          el.setAttribute("title", `${bench.location} (${isAvailable ? "Available" : "Adopted"})`);
+          el.setAttribute("title", `${bench.location} (${statusLabel})`);
 
           let popupHtml = `
             <div class="popup-content-inner">
               <h4 class="popup-title">${bench.location}</h4>
-              <div class="popup-id">ID: ${bench.id}</div>
+              <div class="popup-id">ID: ${bench.id} • ${bench.area || "Park Bench"}</div>
               <span class="popup-status ${pinClass}">
-                ${isAvailable ? "Available" : "Adopted"}
+                ${statusLabel}
               </span>
           `;
 
@@ -447,13 +517,7 @@
               </button>
             `;
           } else if (bench.current_adoption) {
-            popupHtml += `
-              <div class="popup-adoption-details">
-                <div><b>Dedicated by:</b> ${bench.current_adoption.donor_name}</div>
-                ${bench.current_adoption.dedication ? `<div class="popup-dedication">“${bench.current_adoption.dedication}”</div>` : ""}
-                <div class="popup-term">Term ends: ${bench.current_adoption.end_date}</div>
-              </div>
-            `;
+            popupHtml += renderTenureCard(bench.current_adoption);
           }
 
           popupHtml += `</div>`;
@@ -745,7 +809,7 @@
       }
 
       // Ensure available benches are shown in status filter
-      if (activeStatus === "adopted") {
+      if (activeStatus === "adopted" || activeStatus === "ending_soon") {
         activeStatus = "all";
         document.querySelectorAll(".filter-btn").forEach(btn => {
           btn.classList.toggle("active", btn.dataset.status === "all");
@@ -971,13 +1035,7 @@
         `;
 
         if (adoption) {
-          popupHtml += `
-            <div class="popup-adoption-details">
-              <div><b>Dedicated by:</b> ${adoption.donor_name}</div>
-              ${adoption.dedication ? `<div class="popup-dedication">“${adoption.dedication}”</div>` : ""}
-              <div class="popup-term">Term: ${adoption.start_date || ""} to ${adoption.end_date || ""}</div>
-            </div>
-          `;
+          popupHtml += renderTenureCard(adoption);
         }
 
         popupHtml += `</div>`;
