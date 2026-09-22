@@ -644,12 +644,52 @@
         const target = allBenches.find(b => b.id === benchId);
         if (target) {
           target.available = false;
+          target.status = data.adoption ? (data.adoption.status || "adopted") : "adopted";
           target.current_adoption = data.adoption;
+        }
+
+        // Also update recommendation item if in currentRecommendations
+        const recItem = currentRecommendations.find(r => r.bench && r.bench.id === benchId);
+        if (recItem) {
+          recItem.bench.available = false;
+          recItem.bench.current_adoption = data.adoption;
+        }
+
+        // Update recommendation sidebar card button if present
+        const cardEl = document.getElementById(`rec-card-${benchId}`);
+        if (cardEl) {
+          const adoptBtn = cardEl.querySelector(".btn-rec-adopt");
+          if (adoptBtn) {
+            adoptBtn.textContent = "Adopted";
+            adoptBtn.disabled = true;
+            adoptBtn.classList.add("adopted");
+          }
+        }
+
+        // Remove old recommendation popup
+        if (recPopup && recPopup.isOpen()) {
+          recPopup.remove();
         }
 
         closeAdoptModal();
         renderMarkers();
         showToast(`Bench ${benchId} successfully adopted!`);
+
+        // Immediately display the newly adopted bench's Tenure Card popup without lag
+        if (target) {
+          const popupHtml = `
+            <div class="popup-content-inner">
+              <h4 class="popup-title">${target.location}</h4>
+              <div class="popup-id">ID: ${target.id} • ${target.area || "Park Bench"}</div>
+              <span class="popup-status adopted">Adopted</span>
+              ${renderTenureCard(target.current_adoption)}
+            </div>
+          `;
+          recPopup = new maplibregl.Popup({ offset: 12, closeButton: true })
+            .setLngLat([target.longitude, target.latitude])
+            .setHTML(popupHtml)
+            .addTo(map);
+        }
       } catch (err) {
         console.error("Adoption error:", err);
         alert("A network error occurred. Please try again.");
@@ -772,7 +812,8 @@
             .map(r => `<span class="rec-tag">${r}</span>`)
             .join("");
 
-          card.innerHTML = `
+            const isAvail = bench.available !== false;
+            card.innerHTML = `
             <div class="rec-card-header">
               <span class="rec-rank-badge ${isTop ? "rank-1" : ""}">${isTop ? "Top Match" : "#" + (index + 1)}</span>
               <span class="rec-score">${item.score > 0 ? item.score + " pts" : ""}</span>
@@ -782,7 +823,11 @@
             ${reasonsHtml ? `<div class="rec-tags-row">${reasonsHtml}</div>` : ""}
             <div class="rec-card-actions">
               <button type="button" class="btn-rec-fly" onclick="event.stopPropagation(); selectRecommendedBench('${bench.id}')">View on Map</button>
-              <button type="button" class="btn-rec-adopt" onclick="event.stopPropagation(); adoptFromRecommend('${bench.id}')">Adopt</button>
+              ${isAvail ? `
+                <button type="button" class="btn-rec-adopt" onclick="event.stopPropagation(); adoptFromRecommend('${bench.id}')">Adopt</button>
+              ` : `
+                <button type="button" class="btn-rec-adopt adopted" disabled>Adopted</button>
+              `}
             </div>
           `;
 
@@ -831,23 +876,36 @@
         essential: true
       });
 
-      setTimeout(() => {
-        const popupHtml = `
-          <div class="popup-content-inner">
-            <h4 class="popup-title">${bench.location}</h4>
-            <div class="popup-id">ID: ${bench.id} • Recommended Match</div>
-            <span class="popup-status available">Available</span>
-            <button type="button" class="btn-adopt-popup" onclick="openAdoptModal('${bench.id}')">
-              Adopt this Bench
-            </button>
-          </div>
-        `;
+      const isAvailable = bench.available;
+      const isEndingSoon = bench.current_adoption && bench.current_adoption.is_ending_soon;
+      let popupStatusClass = isAvailable ? "available" : (isEndingSoon ? "ending-soon" : "adopted");
+      let popupStatusText = isAvailable ? "Available" : (isEndingSoon ? "Ending Soon" : "Adopted");
 
-        recPopup = new maplibregl.Popup({ offset: 12, closeButton: true })
-          .setLngLat([bench.longitude, bench.latitude])
-          .setHTML(popupHtml)
-          .addTo(map);
-      }, 450);
+      let popupHtml = `
+        <div class="popup-content-inner">
+          <h4 class="popup-title">${bench.location}</h4>
+          <div class="popup-id">ID: ${bench.id} • Recommended Match</div>
+          <span class="popup-status ${popupStatusClass}">
+            ${popupStatusText}
+          </span>
+      `;
+
+      if (isAvailable) {
+        popupHtml += `
+          <button type="button" class="btn-adopt-popup" onclick="openAdoptModal('${bench.id}')">
+            Adopt this Bench
+          </button>
+        `;
+      } else if (bench.current_adoption) {
+        popupHtml += renderTenureCard(bench.current_adoption);
+      }
+
+      popupHtml += `</div>`;
+
+      recPopup = new maplibregl.Popup({ offset: 12, closeButton: true })
+        .setLngLat([bench.longitude, bench.latitude])
+        .setHTML(popupHtml)
+        .addTo(map);
     }
 
     function adoptFromRecommend(benchId) {

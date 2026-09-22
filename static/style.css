@@ -1124,6 +1124,13 @@ select.form-input {
   background: #166534;
 }
 
+.btn-rec-adopt.adopted {
+  background: #94a3b8;
+  color: #f8fafc;
+  cursor: default;
+  pointer-events: none;
+}
+
 .rec-sidebar-footer {
   padding: 8px 12px;
   border-top: 1px solid #e5e7eb;
