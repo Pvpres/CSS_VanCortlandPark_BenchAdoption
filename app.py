@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from models import db, Bench, Adoption
+import os
 import datetime
 import calendar
 import heapq
@@ -15,7 +16,14 @@ def add_months(sourcedate, months):
 
 app = Flask(__name__)
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///benches.db"
+# Database configuration: fallback to local SQLite, or use DATABASE_URL from environment (Postgres/MySQL)
+database_url = os.environ.get("DATABASE_URL", "sqlite:///benches.db")
+# Fix legacy "postgres://" URLs used by Render/Heroku to "postgresql://" required by SQLAlchemy
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key-vcp-bench-adoption")
 
 db.init_app(app)
 
@@ -237,7 +245,9 @@ def recommend_bench():
     }), 200
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    debug = os.environ.get("FLASK_DEBUG", "0") in ("1", "true", "True")
+    app.run(host="0.0.0.0", port=port, debug=debug)
 
 
 

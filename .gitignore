@@ -5,3 +5,5 @@ instance/
 *.db
 .DS_Store
 static/test_carto.png
+.env
+.env.*
