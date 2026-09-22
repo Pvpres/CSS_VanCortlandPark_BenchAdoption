@@ -47,6 +47,30 @@
       </select>
     </div>
 
+    <!-- Part 3: Locate by Donor Name -->
+    <div class="filter-divider"></div>
+    <div class="filter-title">Find by Donor Name</div>
+    <form id="donor-search-form" class="donor-search-form" onsubmit="handleDonorSearch(event)">
+      <div class="donor-search-row">
+        <div class="donor-input-wrap">
+          <svg class="donor-search-icon" viewBox="0 0 20 20" fill="currentColor" width="12" height="12">
+            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
+          </svg>
+          <input 
+            type="text" 
+            id="donor-search-input" 
+            class="donor-search-input" 
+            placeholder="Donor or family name..." 
+            autocomplete="off" 
+          />
+          <button type="button" id="btn-clear-donor" class="donor-clear-btn" onclick="clearDonorSearch()" aria-label="Clear search" style="display: none;">&times;</button>
+        </div>
+        <button type="submit" id="btn-search-donor" class="btn-donor-search">Find</button>
+      </div>
+    </form>
+    <div id="donor-search-status" class="donor-search-status" style="display: none;"></div>
+    <div id="donor-results-list" class="donor-results-list" style="display: none;"></div>
+
     <div class="filter-footer">
       <span id="bench-count">Showing all benches</span>
     </div>
@@ -796,7 +820,193 @@
     // 8. Re-cluster on Map Navigation (Pan / Zoom)
     map.on('moveend', renderMarkers);
 
-    // 9. Initial Load
+    // ==========================================
+    // 9. Locate Adoption by Donor Name
+    // ==========================================
+    let locatePopup = null;
+    let locateMatches = [];
+
+    const donorInput = document.getElementById("donor-search-input");
+    const clearDonorBtn = document.getElementById("btn-clear-donor");
+    const donorStatusEl = document.getElementById("donor-search-status");
+    const donorResultsList = document.getElementById("donor-results-list");
+
+    if (donorInput) {
+      donorInput.addEventListener("input", () => {
+        if (clearDonorBtn) {
+          clearDonorBtn.style.display = donorInput.value.trim() ? "block" : "none";
+        }
+        if (!donorInput.value.trim()) {
+          clearDonorSearch();
+        }
+      });
+    }
+
+    async function handleDonorSearch(e) {
+      if (e) e.preventDefault();
+      const query = donorInput ? donorInput.value.trim() : "";
+      if (!query) return;
+
+      const submitBtn = document.getElementById("btn-search-donor");
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "...";
+      }
+
+      if (donorStatusEl) {
+        donorStatusEl.style.display = "block";
+        donorStatusEl.textContent = "Searching...";
+        donorStatusEl.className = "donor-search-status searching";
+      }
+      if (donorResultsList) {
+        donorResultsList.style.display = "none";
+        donorResultsList.innerHTML = "";
+      }
+
+      try {
+        const res = await fetch("/api/locate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ donor_name: query })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          if (donorStatusEl) {
+            donorStatusEl.textContent = data.error || "Search failed.";
+            donorStatusEl.className = "donor-search-status error";
+          }
+          return;
+        }
+
+        locateMatches = data.benches || [];
+
+        if (!locateMatches.length) {
+          if (donorStatusEl) {
+            donorStatusEl.textContent = `No adoptions found for "${query}".`;
+            donorStatusEl.className = "donor-search-status empty";
+          }
+          if (locatePopup && locatePopup.isOpen()) locatePopup.remove();
+          return;
+        }
+
+        if (donorStatusEl) {
+          donorStatusEl.textContent = `Found ${locateMatches.length} bench${locateMatches.length > 1 ? "es" : ""}`;
+          donorStatusEl.className = "donor-search-status success";
+        }
+
+        if (donorResultsList) {
+          donorResultsList.innerHTML = "";
+          locateMatches.forEach(b => {
+            const card = document.createElement("div");
+            card.className = "donor-result-card";
+            card.innerHTML = `
+              <div class="donor-result-title">${b.adoption ? b.adoption.donor_name : b.location}</div>
+              <div class="donor-result-meta">${b.id} • ${b.location}</div>
+            `;
+            card.addEventListener("click", () => focusLocatedBench(b.id));
+            donorResultsList.appendChild(card);
+          });
+          donorResultsList.style.display = "flex";
+        }
+
+        // Ensure adopted benches are shown in status filter
+        if (activeStatus === "available") {
+          activeStatus = "all";
+          document.querySelectorAll(".filter-btn").forEach(btn => {
+            btn.classList.toggle("active", btn.dataset.status === "all");
+          });
+          dateSection.classList.remove("visible");
+          renderMarkers();
+        }
+
+        // Focus first match
+        focusLocatedBench(locateMatches[0].id);
+
+        if (locateMatches.length > 1) {
+          const bounds = new maplibregl.LngLatBounds();
+          locateMatches.forEach(b => bounds.extend([b.longitude, b.latitude]));
+          map.fitBounds(bounds, { padding: 90, maxZoom: 16 });
+        }
+
+      } catch (err) {
+        console.error("Locate error:", err);
+        if (donorStatusEl) {
+          donorStatusEl.textContent = "Error searching for donor.";
+          donorStatusEl.className = "donor-search-status error";
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Find";
+        }
+      }
+    }
+
+    function focusLocatedBench(benchId) {
+      const bench = locateMatches.find(b => b.id === benchId) || allBenches.find(b => b.id === benchId);
+      if (!bench) return;
+
+      currentMarkers.forEach(m => {
+        const p = m.getPopup();
+        if (p && p.isOpen()) p.remove();
+      });
+      if (recPopup && recPopup.isOpen()) recPopup.remove();
+      if (locatePopup && locatePopup.isOpen()) locatePopup.remove();
+
+      map.flyTo({
+        center: [bench.longitude, bench.latitude],
+        zoom: 17,
+        essential: true
+      });
+
+      const adoption = bench.adoption || bench.current_adoption;
+      setTimeout(() => {
+        let popupHtml = `
+          <div class="popup-content-inner">
+            <div class="popup-locate-badge">Adopted Bench</div>
+            <h4 class="popup-title">${bench.location}</h4>
+            <div class="popup-id">ID: ${bench.id} • ${bench.area || "Van Cortlandt Park"}</div>
+        `;
+
+        if (adoption) {
+          popupHtml += `
+            <div class="popup-adoption-details">
+              <div><b>Dedicated by:</b> ${adoption.donor_name}</div>
+              ${adoption.dedication ? `<div class="popup-dedication">“${adoption.dedication}”</div>` : ""}
+              <div class="popup-term">Term: ${adoption.start_date || ""} to ${adoption.end_date || ""}</div>
+            </div>
+          `;
+        }
+
+        popupHtml += `</div>`;
+
+        locatePopup = new maplibregl.Popup({ offset: 14, closeButton: true })
+          .setLngLat([bench.longitude, bench.latitude])
+          .setHTML(popupHtml)
+          .addTo(map);
+      }, 450);
+    }
+
+    function clearDonorSearch() {
+      if (donorInput) donorInput.value = "";
+      if (clearDonorBtn) clearDonorBtn.style.display = "none";
+      if (donorStatusEl) {
+        donorStatusEl.style.display = "none";
+        donorStatusEl.textContent = "";
+      }
+      if (donorResultsList) {
+        donorResultsList.style.display = "none";
+        donorResultsList.innerHTML = "";
+      }
+      if (locatePopup && locatePopup.isOpen()) {
+        locatePopup.remove();
+      }
+      locateMatches = [];
+    }
+
+    // 10. Initial Load
     map.on('load', () => {
       const dataEl = document.getElementById("benches-data");
       let serverBenches = null;
