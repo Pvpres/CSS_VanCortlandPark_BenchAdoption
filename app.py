@@ -127,16 +127,34 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key-vcp-benc
 db.init_app(app)
 
 with app.app_context():
-    db.create_all()
-    # Auto-seed on startup if database is fresh/empty (e.g. initial launch on Render PostgreSQL)
+    # Auto-migrate / auto-seed on startup if database is fresh, empty, or schema is outdated
     try:
-        if Bench.query.count() == 0:
-            print("Database is empty. Automatically seeding 100 benches and initial adoptions...")
-            from seed import seed_benches, seed_adoptions
-            seed_benches()
-            seed_adoptions()
+        from sqlalchemy import inspect
+        from seed import seed_benches, seed_adoptions
+        
+        inspector = inspect(db.engine)
+        table_names = inspector.get_table_names()
+        
+        needs_reset = False
+        if "bench" not in table_names or "adoption" not in table_names:
+            needs_reset = True
+        else:
+            bench_cols = [c["name"] for c in inspector.get_columns("bench")]
+            adoption_cols = [c["name"] for c in inspector.get_columns("adoption")]
+            if "setting" not in bench_cols or "duration_months" not in adoption_cols:
+                needs_reset = True
+            elif Bench.query.count() == 0 or Adoption.query.count() == 0:
+                needs_reset = True
+
+        if needs_reset:
+            print("Database schema outdated or empty. Automatically resetting and reseeding benches and adoptions...")
+            seed_benches(reset=True)
+            seed_adoptions(reset=True)
+        else:
+            db.create_all()
     except Exception as e:
-        print(f"Auto-seed check: {e}")
+        print(f"Auto-migration/seed check: {e}")
+        db.create_all()
 
 @app.route("/admin/seed", methods=["GET", "POST"])
 def admin_seed():
