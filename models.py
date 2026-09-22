@@ -8,6 +8,14 @@ class Bench(db.Model):
     latitude = db.Column(db.Float, nullable=False)
     longitude = db.Column(db.Float, nullable=False)
     location = db.Column(db.String)
+    area = db.Column(db.String)
+    setting = db.Column(db.String)
+    #useful for recommending benches to adopt as number of benches grows
+    near_lake = db.Column(db.Boolean, default=False)#boolean
+    near_entrance = db.Column(db.Boolean, default=False)#boolean
+    near_trail = db.Column(db.Boolean, default=False)#boolean
+    near_recreational_facility = db.Column(db.Boolean, default=False)
+    
     #maybe add description feature
 
 #Adoption table in DB represents the actually ownership  

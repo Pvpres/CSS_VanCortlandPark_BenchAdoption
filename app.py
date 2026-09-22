@@ -1,6 +1,15 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from models import db, Bench, Adoption
 import datetime
+import calendar
+
+def add_months(sourcedate, months):
+    """Add a given number of months to a date, correctly handling leap years and month boundaries."""
+    month = sourcedate.month - 1 + months
+    year = sourcedate.year + (month // 12)
+    month = (month % 12) + 1
+    day = min(sourcedate.day, calendar.monthrange(year, month)[1])
+    return datetime.date(year, month, day)
 
 app = Flask(__name__)
 
@@ -63,9 +72,15 @@ def get_benches():
             "latitude": bench.latitude,
             "longitude": bench.longitude,
             "location": bench.location,
+            "area": bench.area,
+            "setting": bench.setting,
+            "near_lake": bench.near_lake,
+            "near_entrance": bench.near_entrance,
+            "near_trail": bench.near_trail,
+            "near_recreational_facility": bench.near_recreational_facility,
             "available": matching_adoption is None,
             "current_adoption": matching_adoption
-                })
+        })
 
     return jsonify(full_list)
 
@@ -91,16 +106,25 @@ def adopt_bench(bench_id):
     email = data.get("email").strip()
     dedication = data.get("dedication", "").strip() or None
 
-    # 4. Calculate 10-year term dates
+    # 4. Extract and validate duration_months (minimum 6 months up to 10 years / 120 months)
+    duration_months_raw = data.get("duration_months")
+    if duration_months_raw is None:
+        duration_months = 120
+    else:
+        try:
+            duration_months = int(duration_months_raw)
+        except (ValueError, TypeError):
+            return jsonify({"error": "duration_months must be a valid integer"}), 400
+
+    if duration_months < 6 or duration_months > 120:
+        return jsonify({"error": "Adoption length must be between 6 months and 10 years (6 to 120 months)"}), 400
+
+    # 5. Calculate term dates
     today = datetime.date.today()
     start_date = today
-    try:
-        end_date = today.replace(year=today.year + 10)
-    except ValueError:
-        # Fallback for leap-year edge cases (e.g. Feb 29)
-        end_date = today + datetime.timedelta(days=365 * 10)
+    end_date = add_months(today, duration_months)
 
-    # 5. Create, save, and commit adoption record
+    # 6. Create, save, and commit adoption record
     new_adoption = Adoption(
         bench_id=bench.id,
         donor_name=donor_name,
@@ -119,7 +143,8 @@ def adopt_bench(bench_id):
             "donor_name": donor_name,
             "dedication": dedication,
             "start_date": str(start_date),
-            "end_date": str(end_date)
+            "end_date": str(end_date),
+            "duration_months": duration_months
         }
     }), 201
     
