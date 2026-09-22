@@ -65,9 +65,26 @@
           <span class="form-helper">Private, used only for park verification.</span>
         </div>
         <div class="form-group">
+          <label class="form-label" for="duration-select">Adoption Length *</label>
+          <select id="duration-select" name="duration_months" class="form-input" required>
+            <option value="6">6 Months</option>
+            <option value="12">1 Year</option>
+            <option value="24">2 Years</option>
+            <option value="36">3 Years</option>
+            <option value="48">4 Years</option>
+            <option value="60">5 Years</option>
+            <option value="72">6 Years</option>
+            <option value="84">7 Years</option>
+            <option value="96">8 Years</option>
+            <option value="108">9 Years</option>
+            <option value="120" selected>10 Years</option>
+          </select>
+          <span class="form-helper" id="duration-helper">Select duration (6 months up to 10 years).</span>
+        </div>
+        <div class="form-group">
           <label class="form-label" for="dedication-input">Dedication Plaque Inscription</label>
           <textarea id="dedication-input" class="form-input" placeholder="e.g. In loving memory of..."></textarea>
-          <span class="form-helper">Term lasts 10 years from today.</span>
+          <span class="form-helper">Inscribed on the bench plaque.</span>
         </div>
         <div class="modal-actions">
           <button type="button" class="btn-cancel" onclick="closeAdoptModal()">Cancel</button>
@@ -104,96 +121,249 @@
     let activeStatus = "all";
     let activeDateFilter = "all";
 
-    // 2. Render Markers onto Map
-    function renderMarkers(benches) {
-      // Clear existing markers
-      currentMarkers.forEach(marker => marker.remove());
-      currentMarkers = [];
+    // 2. Filter Helper
+    function getFilteredBenches() {
+      let filtered = allBenches;
 
-      benches.forEach(bench => {
-        const isAvailable = bench.available;
-        const pinClass = isAvailable ? "available" : "adopted";
+      if (activeStatus === "available") {
+        filtered = filtered.filter(b => b.available);
+      } else if (activeStatus === "adopted") {
+        filtered = filtered.filter(b => !b.available);
 
-        const el = document.createElement("div");
-        el.className = `pin ${pinClass}`;
-        el.setAttribute("title", `${bench.location} (${isAvailable ? "Available" : "Adopted"})`);
-
-        let popupHtml = `
-          <div class="popup-content-inner">
-            <h4 class="popup-title">${bench.location}</h4>
-            <div class="popup-id">ID: ${bench.id}</div>
-            <span class="popup-status ${pinClass}">
-              ${isAvailable ? "Available" : "Adopted"}
-            </span>
-        `;
-
-        if (isAvailable) {
-          popupHtml += `
-            <button type="button" class="btn-adopt-popup" onclick="openAdoptModal('${bench.id}')">
-              Adopt this Bench
-            </button>
-          `;
-        } else if (bench.current_adoption) {
-          popupHtml += `
-            <div class="popup-adoption-details">
-              <div><b>Dedicated by:</b> ${bench.current_adoption.donor_name}</div>
-              ${bench.current_adoption.dedication ? `<div class="popup-dedication">“${bench.current_adoption.dedication}”</div>` : ""}
-              <div class="popup-term">Term ends: ${bench.current_adoption.end_date}</div>
-            </div>
-          `;
+        if (activeDateFilter !== "all") {
+          filtered = filtered.filter(b => {
+            if (!b.current_adoption || !b.current_adoption.end_date) return false;
+            const endYear = parseInt(b.current_adoption.end_date.slice(0, 4), 10);
+            if (activeDateFilter === "soon") return endYear <= 2026;
+            if (activeDateFilter === "midterm") return endYear > 2026 && endYear <= 2032;
+            if (activeDateFilter === "recent") return endYear >= 2033;
+            return true;
+          });
         }
+      }
 
-        popupHtml += `</div>`;
-
-        const popup = new maplibregl.Popup({ offset: 12, closeButton: false })
-          .setLngLat([bench.longitude, bench.latitude])
-          .setHTML(popupHtml);
-
-        const marker = new maplibregl.Marker({ element: el })
-          .setLngLat([bench.longitude, bench.latitude])
-          .setPopup(popup)
-          .addTo(map);
-
-        // Hover handling to display popup and allow moving cursor into popup
-        let hoverTimeout = null;
-
-        el.addEventListener("mouseenter", () => {
-          clearTimeout(hoverTimeout);
-          if (!popup.isOpen()) {
-            popup.addTo(map);
-          }
-
-          const popupEl = popup.getElement();
-          if (popupEl && !popupEl.dataset.hoverBound) {
-            popupEl.dataset.hoverBound = "true";
-            popupEl.addEventListener("mouseenter", () => {
-              clearTimeout(hoverTimeout);
-            });
-            popupEl.addEventListener("mouseleave", () => {
-              hoverTimeout = setTimeout(() => {
-                popup.remove();
-              }, 250);
-            });
-          }
-        });
-
-        el.addEventListener("mouseleave", () => {
-          hoverTimeout = setTimeout(() => {
-            popup.remove();
-          }, 250);
-        });
-
-        currentMarkers.push(marker);
-      });
-
-      // Update count text
-      const countEl = document.getElementById("bench-count");
-      countEl.textContent = `Showing ${benches.length} of ${allBenches.length} benches`;
+      return filtered;
     }
 
-    // 3. Modal & Adoption Logic
+    // 3. Screen-Pixel Distance Clustering Algorithm (Unclusters at zoom >= 16)
+    function clusterBenches(benches, radius = 45) {
+      if (map.getZoom() >= 16) {
+        return benches.map(b => ({
+          isCluster: false,
+          coordinates: [b.longitude, b.latitude],
+          bench: b
+        }));
+      }
+
+      const clusters = [];
+      const visited = new Set();
+      const points = benches.map((bench, i) => {
+        const p = map.project([bench.longitude, bench.latitude]);
+        return { index: i, bench, x: p.x, y: p.y };
+      });
+
+      for (let i = 0; i < points.length; i++) {
+        if (visited.has(i)) continue;
+        visited.add(i);
+
+        const group = [points[i]];
+
+        for (let j = i + 1; j < points.length; j++) {
+          if (visited.has(j)) continue;
+          const dx = points[i].x - points[j].x;
+          const dy = points[i].y - points[j].y;
+          if (Math.hypot(dx, dy) < radius) {
+            visited.add(j);
+            group.push(points[j]);
+          }
+        }
+
+        if (group.length === 1) {
+          clusters.push({
+            isCluster: false,
+            coordinates: [group[0].bench.longitude, group[0].bench.latitude],
+            bench: group[0].bench
+          });
+        } else {
+          const avgLng = group.reduce((sum, p) => sum + p.bench.longitude, 0) / group.length;
+          const avgLat = group.reduce((sum, p) => sum + p.bench.latitude, 0) / group.length;
+          clusters.push({
+            isCluster: true,
+            coordinates: [avgLng, avgLat],
+            benches: group.map(p => p.bench),
+            pointCount: group.length
+          });
+        }
+      }
+
+      return clusters;
+    }
+
+    // 4. Hover Helper for Map Popups
+    function bindPopupHover(el, popup) {
+      let hoverTimeout = null;
+
+      el.addEventListener("mouseenter", () => {
+        clearTimeout(hoverTimeout);
+        if (!popup.isOpen()) popup.addTo(map);
+
+        const popupEl = popup.getElement();
+        if (popupEl && !popupEl.dataset.hoverBound) {
+          popupEl.dataset.hoverBound = "true";
+          popupEl.addEventListener("mouseenter", () => clearTimeout(hoverTimeout));
+          popupEl.addEventListener("mouseleave", () => {
+            hoverTimeout = setTimeout(() => popup.remove(), 250);
+          });
+        }
+      });
+
+      el.addEventListener("mouseleave", () => {
+        hoverTimeout = setTimeout(() => popup.remove(), 250);
+      });
+    }
+
+    // 5. Render Markers & Clusters onto Map (Styled purely via CSS classes)
+    function renderMarkers() {
+      currentMarkers.forEach(m => m.remove());
+      currentMarkers = [];
+
+      const filtered = getFilteredBenches();
+      const clusters = clusterBenches(filtered);
+
+      clusters.forEach(item => {
+        if (item.isCluster) {
+          const availCount = item.benches.filter(b => b.available).length;
+          const adoptedCount = item.pointCount - availCount;
+
+          let statusClass = "mixed";
+          if (adoptedCount === 0) {
+            statusClass = "all-available";
+          } else if (availCount === 0) {
+            statusClass = "all-adopted";
+          }
+
+          const el = document.createElement("div");
+          const sizeClass = item.pointCount < 8 ? "small" : item.pointCount < 20 ? "medium" : "large";
+          el.className = `cluster ${sizeClass} ${statusClass}`;
+          el.innerHTML = `<span>${item.pointCount}</span>`;
+          const tooltipHtml = `
+            <div class="cluster-tooltip-inner">
+              <div class="cluster-tooltip-count">${item.pointCount} Benches</div>
+              <div class="cluster-tooltip-breakdown">
+                <span class="dot green"></span> ${availCount} Available
+                &nbsp;•&nbsp;
+                <span class="dot yellow"></span> ${adoptedCount} Adopted
+              </div>
+              <div class="cluster-tooltip-hint">Click to zoom in</div>
+            </div>
+          `;
+
+          const popup = new maplibregl.Popup({ offset: 14, closeButton: false, className: 'cluster-tooltip' })
+            .setLngLat(item.coordinates)
+            .setHTML(tooltipHtml);
+
+          el.addEventListener("mouseenter", () => popup.addTo(map));
+          el.addEventListener("mouseleave", () => popup.remove());
+
+          // Click cluster: zoom in to expand
+          el.addEventListener("click", () => {
+            popup.remove();
+            map.easeTo({
+              center: item.coordinates,
+              zoom: map.getZoom() + 2
+            });
+          });
+
+          const marker = new maplibregl.Marker({ element: el })
+            .setLngLat(item.coordinates)
+            .addTo(map);
+          currentMarkers.push(marker);
+        } else {
+          // Individual bench marker styled in style.css (.pin.available / .pin.adopted)
+          const bench = item.bench;
+          const isAvailable = bench.available;
+          const pinClass = isAvailable ? "available" : "adopted";
+
+          const el = document.createElement("div");
+          el.className = `pin ${pinClass}`;
+          el.setAttribute("title", `${bench.location} (${isAvailable ? "Available" : "Adopted"})`);
+
+          let popupHtml = `
+            <div class="popup-content-inner">
+              <h4 class="popup-title">${bench.location}</h4>
+              <div class="popup-id">ID: ${bench.id}</div>
+              <span class="popup-status ${pinClass}">
+                ${isAvailable ? "Available" : "Adopted"}
+              </span>
+          `;
+
+          if (isAvailable) {
+            popupHtml += `
+              <button type="button" class="btn-adopt-popup" onclick="openAdoptModal('${bench.id}')">
+                Adopt this Bench
+              </button>
+            `;
+          } else if (bench.current_adoption) {
+            popupHtml += `
+              <div class="popup-adoption-details">
+                <div><b>Dedicated by:</b> ${bench.current_adoption.donor_name}</div>
+                ${bench.current_adoption.dedication ? `<div class="popup-dedication">“${bench.current_adoption.dedication}”</div>` : ""}
+                <div class="popup-term">Term ends: ${bench.current_adoption.end_date}</div>
+              </div>
+            `;
+          }
+
+          popupHtml += `</div>`;
+
+          const popup = new maplibregl.Popup({ offset: 12, closeButton: false })
+            .setLngLat(item.coordinates)
+            .setHTML(popupHtml);
+
+          const marker = new maplibregl.Marker({ element: el })
+            .setLngLat(item.coordinates)
+            .setPopup(popup)
+            .addTo(map);
+
+          bindPopupHover(el, popup);
+          currentMarkers.push(marker);
+        }
+      });
+
+      // Update count text in filter card footer
+      const countEl = document.getElementById("bench-count");
+      if (countEl) {
+        countEl.textContent = `Showing ${filtered.length} of ${allBenches.length} benches`;
+      }
+    }
+
+    // 6. Modal & Adoption Logic
+    function updateDurationUI() {
+      const select = document.getElementById("duration-select");
+      const helper = document.getElementById("duration-helper");
+      const submitBtn = document.getElementById("btn-submit-adopt");
+      if (!select) return;
+      const months = parseInt(select.value, 10);
+      const selectedText = select.options[select.selectedIndex].text;
+
+      const endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + months);
+      const formattedDate = endDate.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+
+      if (helper) {
+        helper.textContent = `Term lasts ${selectedText.toLowerCase()} (expires approx. ${formattedDate}).`;
+      }
+      if (submitBtn && !submitBtn.disabled) {
+        submitBtn.textContent = `Adopt for ${selectedText}`;
+      }
+    }
+
+    document.getElementById("duration-select").addEventListener("change", updateDurationUI);
+
     function openAdoptModal(benchId) {
-      // Close active popups
       currentMarkers.forEach(m => {
         const p = m.getPopup();
         if (p && p.isOpen()) p.remove();
@@ -208,6 +378,8 @@
       document.getElementById("donor-name-input").value = "";
       document.getElementById("donor-email-input").value = "";
       document.getElementById("dedication-input").value = "";
+      document.getElementById("duration-select").value = "120";
+      updateDurationUI();
 
       document.getElementById("adopt-modal").classList.add("open");
       document.getElementById("donor-name-input").focus();
@@ -217,17 +389,12 @@
       document.getElementById("adopt-modal").classList.remove("open");
     }
 
-    // Close modal when clicking backdrop or pressing Escape
     document.getElementById("adopt-modal").addEventListener("click", (e) => {
-      if (e.target.id === "adopt-modal") {
-        closeAdoptModal();
-      }
+      if (e.target.id === "adopt-modal") closeAdoptModal();
     });
 
     window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        closeAdoptModal();
-      }
+      if (e.key === "Escape") closeAdoptModal();
     });
 
     // Form submit handler
@@ -238,9 +405,9 @@
       const donorName = document.getElementById("donor-name-input").value.trim();
       const email = document.getElementById("donor-email-input").value.trim();
       const dedication = document.getElementById("dedication-input").value.trim();
+      const durationMonths = parseInt(document.getElementById("duration-select").value, 10);
 
       const submitBtn = document.getElementById("btn-submit-adopt");
-      const origText = submitBtn.textContent;
       submitBtn.disabled = true;
       submitBtn.textContent = "Processing...";
 
@@ -251,7 +418,8 @@
           body: JSON.stringify({
             donor_name: donorName,
             email: email,
-            dedication: dedication
+            dedication: dedication,
+            duration_months: durationMonths
           })
         });
 
@@ -262,7 +430,6 @@
           return;
         }
 
-        // Update local bench state
         const target = allBenches.find(b => b.id === benchId);
         if (target) {
           target.available = false;
@@ -270,14 +437,14 @@
         }
 
         closeAdoptModal();
-        applyFilters();
+        renderMarkers();
         showToast(`Bench ${benchId} successfully adopted!`);
       } catch (err) {
         console.error("Adoption error:", err);
         alert("A network error occurred. Please try again.");
       } finally {
         submitBtn.disabled = false;
-        submitBtn.textContent = origText;
+        updateDurationUI();
       }
     });
 
@@ -294,49 +461,16 @@
       }, 3500);
     }
 
-    // 4. Filter Logic
-    function applyFilters() {
-      let filtered = allBenches;
-
-      // Part 1: Filter by Status
-      if (activeStatus === "available") {
-        filtered = filtered.filter(b => b.available);
-      } else if (activeStatus === "adopted") {
-        filtered = filtered.filter(b => !b.available);
-
-        // Part 2: Filter by End Date (only active if Adopted is selected)
-        if (activeDateFilter !== "all") {
-          filtered = filtered.filter(b => {
-            if (!b.current_adoption || !b.current_adoption.end_date) return false;
-            const endYear = parseInt(b.current_adoption.end_date.slice(0, 4), 10);
-
-            if (activeDateFilter === "soon") {
-              return endYear <= 2026;
-            } else if (activeDateFilter === "midterm") {
-              return endYear > 2026 && endYear <= 2032;
-            } else if (activeDateFilter === "recent") {
-              return endYear >= 2033;
-            }
-            return true;
-          });
-        }
-      }
-
-      renderMarkers(filtered);
-    }
-
-    // 5. UI Event Listeners for Filters
+    // 7. Filter Event Listeners
     const dateSection = document.getElementById("date-filter-section");
     const dateSelect = document.getElementById("date-select");
 
-    // Status button clicks
     document.querySelectorAll(".filter-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
         activeStatus = btn.dataset.status;
 
-        // Show Part 2 (End Date) ONLY if "Adopted" is selected
         if (activeStatus === "adopted") {
           dateSection.classList.add("visible");
         } else {
@@ -345,17 +479,19 @@
           dateSelect.value = "all";
         }
 
-        applyFilters();
+        renderMarkers();
       });
     });
 
-    // End date select change
     dateSelect.addEventListener("change", (e) => {
       activeDateFilter = e.target.value;
-      applyFilters();
+      renderMarkers();
     });
 
-    // 6. Initial Load
+    // 8. Re-cluster on Map Navigation (Pan / Zoom)
+    map.on('moveend', renderMarkers);
+
+    // 9. Initial Load
     map.on('load', () => {
       const dataEl = document.getElementById("benches-data");
       let serverBenches = null;
@@ -369,13 +505,13 @@
 
       if (serverBenches && serverBenches.length) {
         allBenches = serverBenches;
-        applyFilters();
+        renderMarkers();
       } else {
         fetch('/api/benches')
           .then(res => res.json())
           .then(data => {
             allBenches = data;
-            applyFilters();
+            renderMarkers();
           })
           .catch(err => console.error("Error loading benches:", err));
       }
